@@ -1,0 +1,43 @@
+# Продакшен-подобный стенд: бот + PostgreSQL + Redis.
+#   docker compose up --build -d
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://skazki:skazki@db:5432/skazki
+      REDIS_URL: redis://redis:6379/0
+      LOG_JSON: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Для RUN_MODE=webhook откройте порт и поставьте перед ботом HTTPS-прокси (Caddy/Nginx/Cloudflare):
+    # ports: ["8080:8080"]
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skazki
+      POSTGRES_PASSWORD: skazki
+      POSTGRES_DB: skazki
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skazki -d skazki"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
