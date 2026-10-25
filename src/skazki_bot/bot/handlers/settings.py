@@ -35,7 +35,12 @@ async def cb_settings(callback: CallbackQuery, bot: Bot, state: FSMContext, user
     await callback.answer()
     await state.clear()
     length = _length_of(user.tale_length)
-    await show(callback, bot, texts.settings_text(length), kb.settings_kb(length))
+    await show(
+        callback,
+        bot,
+        texts.settings_text(length, user.cheer_freq),
+        kb.settings_kb(length, user.cheer_freq),
+    )
 
 
 @router.callback_query(SettingCb.filter(F.key == "length"))
@@ -49,7 +54,12 @@ async def cb_length(
         return
     async with sf.begin() as session:
         await repo.set_tale_length(session, user.id, length.value)
-    await show(callback, bot, texts.settings_text(length), kb.settings_kb(length))
+    await show(
+        callback,
+        bot,
+        texts.settings_text(length, user.cheer_freq),
+        kb.settings_kb(length, user.cheer_freq),
+    )
 
 
 @router.callback_query(SettingCb.filter(F.key == "privacy"))

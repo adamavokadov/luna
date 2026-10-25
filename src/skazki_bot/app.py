@@ -17,6 +17,8 @@ from aiohttp import web
 
 from skazki_bot.bot.handlers import build_router
 from skazki_bot.bot.middlewares import ThrottlingMiddleware, UserMiddleware
+from skazki_bot.cheer import CheerService
+from skazki_bot.cheer.scheduler import CheerScheduler
 from skazki_bot.config import Settings
 from skazki_bot.db.base import SessionFactory, create_engine, create_session_factory
 from skazki_bot.harness import SkillRegistry, TaleHarness
@@ -31,13 +33,14 @@ COMMANDS = [
     BotCommand(command="menu", description="Главное меню"),
     BotCommand(command="new", description="Новая сказка"),
     BotCommand(command="profile", description="Профиль ребёнка"),
+    BotCommand(command="cheer", description="Тёплое слово от Луны"),
     BotCommand(command="delete", description="Удалить мои данные"),
     BotCommand(command="help", description="Помощь"),
 ]
-SHORT_DESCRIPTION = "Персональные сказки для вашего ребёнка ✨"
+SHORT_DESCRIPTION = "Луна: персональные сказки для ребёнка и тёплые слова для вас ✨"
 DESCRIPTION = (
-    "Я сочиняю сказки с именем вашего малыша, его любимыми героями и в понятном для его возраста "
-    "стиле. Расскажите о ребёнке — и вечером будет что почитать 🌙"
+    "Я — Лу́на. Сочиняю сказки с именем вашего малыша, его любимыми героями и в понятном для его "
+    "возраста стиле. Расскажите о ребёнке — и вечером будет что почитать 🌙"
 )
 
 
@@ -69,6 +72,7 @@ def build_dispatcher(
     sf: SessionFactory,
     tales: TaleService,
     skills: SkillRegistry,
+    cheer: CheerService | None = None,
     storage: BaseStorage | None = None,
     isolation: BaseEventIsolation | None = None,
     throttle: bool = True,
@@ -82,6 +86,7 @@ def build_dispatcher(
         sf=sf,
         tales=tales,
         skills=skills,
+        cheer=cheer or CheerService(sf=sf, settings=settings),
     )
     for observer in (dp.message, dp.callback_query):
         if throttle:
@@ -150,17 +155,34 @@ async def run(settings: Settings) -> None:
     harness = TaleHarness(llm=build_llm(settings), registry=skills, settings=settings)
     tales = TaleService(sf=sf, harness=harness, settings=settings)
     log.info("skills_loaded", count=len(skills), names=[s.name for s in skills.all()])
+    cheer = CheerService(sf=sf, settings=settings)
     storage, isolation = build_storage(settings)
     bot = build_bot(settings)
     dp = build_dispatcher(
-        settings=settings, sf=sf, tales=tales, skills=skills, storage=storage, isolation=isolation
+        settings=settings,
+        sf=sf,
+        tales=tales,
+        skills=skills,
+        cheer=cheer,
+        storage=storage,
+        isolation=isolation,
     )
+    scheduler: asyncio.Task[None] | None = None
+    if settings.cheer_enabled:
+        scheduler = asyncio.create_task(
+            CheerScheduler(cheer, bot, tick_s=settings.cheer_tick_s).run_forever(),
+            name="cheer-scheduler",
+        )
     try:
         if settings.run_mode == "webhook":
             await run_webhook(bot, dp, settings)
         else:
             await run_polling(bot, dp)
     finally:
+        if scheduler is not None:
+            scheduler.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await scheduler
         await bot.session.close()
         await storage.close()
         await engine.dispose()

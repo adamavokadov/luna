@@ -48,6 +48,7 @@ addopts = "-q"
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+extend-exclude = ["patch_*.py", "patches", ".patch-backups"]  # AI-workflow artifacts, not project code
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]

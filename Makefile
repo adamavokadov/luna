@@ -1,4 +1,4 @@
-.PHONY: install migrate run test lint fmt typecheck check skills-check eval revision docker-up
+.PHONY: install migrate run test lint fmt typecheck check skills-check kb-check unpack eval revision docker-up
 
 UV ?= uv
 
@@ -28,10 +28,16 @@ typecheck:
 skills-check:  ## Проверить навыки (встроенные или каталог: make skills-check dir=./my-skills)
 	$(UV) run python -m skazki_bot.harness.skills_cli $(dir)
 
+kb-check:  ## Validate the knowledge bases, Luna's persona and the cheer skill
+	$(UV) run python -m skazki_bot.knowledge
+
+unpack:  ## Rebuild a repo from a repomix export: make unpack src=repomix-output.xml dst=/tmp/repo
+	python3 tools/unpack_repomix.py $(src) $(dst)
+
 eval:  ## Прогнать форматы на эталонных профилях (LLM_PROVIDER=fake — офлайн; make eval skill=bedtime)
 	$(UV) run python -m skazki_bot.evals $(if $(skill),--skill $(skill),)
 
-check: lint typecheck test skills-check  ## Всё, что гоняет CI
+check: lint typecheck test skills-check kb-check  ## Всё, что гоняет CI
 
 revision:  ## Новая миграция: make revision m="описание"
 	$(UV) run alembic revision --autogenerate -m "$(m)"

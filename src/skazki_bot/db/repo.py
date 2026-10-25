@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
@@ -38,6 +38,77 @@ async def delete_user_data(session: AsyncSession, user_id: int) -> None:
     await session.execute(delete(Tale).where(Tale.user_id == user_id))
     await session.execute(delete(Child).where(Child.user_id == user_id))
     await session.execute(delete(User).where(User.id == user_id))
+
+
+# --- Luna's warm words (cheer skill) -------------------------------------------------------------
+@dataclass(frozen=True)
+class CheerCandidate:
+    user_id: int
+    freq: str
+    last_at: datetime | None
+
+
+async def set_cheer_freq(session: AsyncSession, user_id: int, freq: str) -> None:
+    """Choosing a frequency (including «off») also means the invitation was answered."""
+    await session.execute(
+        update(User).where(User.id == user_id).values(cheer_freq=freq, cheer_asked=True)
+    )
+
+
+async def mark_cheer_asked(session: AsyncSession, user_id: int) -> bool:
+    """True only for the call that flips the flag: the invitation is shown exactly once."""
+    result = await session.execute(
+        update(User).where(User.id == user_id, User.cheer_asked.is_(False)).values(cheer_asked=True)
+    )
+    return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
+async def list_cheer_candidates(session: AsyncSession) -> list[CheerCandidate]:
+    rows = await session.execute(
+        select(User.id, User.cheer_freq, User.cheer_last_at)
+        .where(User.cheer_freq != "off")
+        .order_by(User.id)
+    )
+    return [CheerCandidate(user_id=r[0], freq=r[1], last_at=r[2]) for r in rows]
+
+
+async def claim_cheer_slot(
+    session: AsyncSession, user_id: int, *, now: datetime, cutoff: datetime
+) -> bool:
+    """Atomically take the next slot: succeeds for exactly one caller even across replicas."""
+    result = await session.execute(
+        update(User)
+        .where(
+            User.id == user_id,
+            User.cheer_freq != "off",
+            or_(User.cheer_last_at.is_(None), User.cheer_last_at <= cutoff),
+        )
+        .values(cheer_last_at=now)
+    )
+    return bool(result.rowcount)  # type: ignore[attr-defined]
+
+
+async def cheer_context(session: AsyncSession, user_id: int) -> tuple[str | None, list[str]]:
+    """The active child's name (first profile as a fallback) and the recently sent item ids."""
+    name = await session.scalar(
+        select(Child.name)
+        .where(Child.user_id == user_id)
+        .order_by(Child.is_active.desc(), Child.id)
+        .limit(1)
+    )
+    user = await session.get(User, user_id)
+    return name, list((user.cheer_recent if user else None) or [])
+
+
+async def push_cheer_sent(
+    session: AsyncSession, user_id: int, item_id: str, *, limit: int, now: datetime
+) -> None:
+    user = await session.get(User, user_id)
+    if user is None:
+        return
+    user.cheer_recent = [*(user.cheer_recent or []), item_id][-limit:]  # new list -> JSON change
+    user.cheer_last_at = now
+    await session.flush()
 
 
 # --- Дети ---------------------------------------------------------------------------------------

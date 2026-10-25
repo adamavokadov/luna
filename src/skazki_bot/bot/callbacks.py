@@ -6,7 +6,7 @@ from aiogram.filters.callback_data import CallbackData
 
 
 class MenuCb(CallbackData, prefix="m"):
-    action: str  # home | new | bedtime | profile | tales | settings
+    action: str  # home | new | bedtime | profile | tales | cheer | settings
     fresh: bool = False  # True → ответить НОВЫМ сообщением (кнопка стоит под текстом сказки)
 
 
@@ -58,3 +58,10 @@ class ShowTaleCb(CallbackData, prefix="st"):
 class SettingCb(CallbackData, prefix="s"):
     key: str  # length | privacy | delete_ask | delete_yes
     value: str = ""
+
+
+class CheerCb(CallbackData, prefix="ch"):
+    action: str  # menu | mood | more | freq_menu | freq
+    mood: str = ""  # tired | anxious | stuck | proud | any ("" = no preference)
+    value: str = ""  # frequency for action=freq: off | weekly | few | daily
+    src: str = ""  # where the choice was made: settings | invite | msg

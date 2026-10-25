@@ -30,6 +30,12 @@ from skazki_bot.harness.types import (
     RunResult,
     RunTrace,
 )
+from skazki_bot.knowledge.tale_kb import (
+    FolkToolkit,
+    load_folk_toolkit,
+    pick_toolkit,
+    toolkit_prompt,
+)
 from skazki_bot.llm.base import ChatLLM, LLMError, Message, TurnResult
 from skazki_bot.llm.parse import ParsedTale, parse_tale
 from skazki_bot.logging import get_logger
@@ -53,12 +59,17 @@ class TaleHarness:
         settings: Settings,
         classics: Sequence[Classic] | None = None,
         rng: random.Random | None = None,
+        toolkit: FolkToolkit | None = None,
+        toolkit_rng: random.Random | None = None,
     ) -> None:
         self._llm = llm
         self.registry = registry
         self._cfg = settings
         self._classics = tuple(classics) if classics is not None else load_classics()
         self._rng = rng or random.Random()
+        # A separate generator: picking folk building blocks must not shift classic selection
+        self._toolkit = toolkit if toolkit is not None else load_folk_toolkit()
+        self._toolkit_rng = toolkit_rng or random.Random()
         self._system = build_system(registry)
 
     # --- публичный вход ---------------------------------------------------------------------------
@@ -117,6 +128,7 @@ class TaleHarness:
             idea=req.idea,
             recent_formats=[t.skill for t in inp.recent if t.skill][:3],
             sensitive=sensitive,
+            toolkit=self._toolkit_block(inp, primary, sensitive),
         )
 
         # 3. Инструменты: у явного навыка — принцип наименьших привилегий
@@ -325,6 +337,23 @@ class TaleHarness:
             return []
         overlay = self.registry.get(BEDTIME)
         return [overlay] if overlay is not None and overlay.meta.overlay else []
+
+    def _toolkit_block(self, inp: RunInput, primary: Skill | None, sensitive: bool) -> str | None:
+        """Optional folk building blocks (opening, closing, helper...) from the knowledge base.
+
+        Skipped for emotionally heavy topics: playful formulas would be out of tune there.
+        """
+        if sensitive:
+            return None
+        bedtime = inp.request.bedtime or (primary is not None and primary.name == BEDTIME)
+        pick = pick_toolkit(
+            self._toolkit,
+            age=inp.child.age,
+            bedtime=bedtime,
+            themes=themes_for(list(inp.child.interests)),
+            rng=self._toolkit_rng,
+        )
+        return toolkit_prompt(pick)
 
     def _selection(self, inp: RunInput) -> SelectionContext:
         return SelectionContext(

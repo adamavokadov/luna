@@ -1,0 +1,211 @@
+# Folk toolkit: building blocks of Russian folk-tale poetics, handed to the model as OPTIONAL
+# material while it writes a tale (see skazki_bot.knowledge.tale_kb.toolkit_prompt).
+# All entries are traditional formulas or short original lines; nothing here is a quoted text.
+#
+# Fields: id (unique, a-z0-9_), text (Russian), min_age/max_age (default 2..10),
+#         calm (default true: fine for a bedtime tale), themes (optional: prefer on overlap).
+# Themes: animals forest farm adventure magic fairies kingdom sea winter home food friendship
+#         nature insects music space dinosaurs transport technology dragons sport art
+
+openings:
+  - id: op_edge_of_forest
+    text: "Жили-были на краю дремучего леса, да не страшного, а самого доброго…"
+    themes: [forest, animals]
+  - id: op_far_kingdom
+    text: "В некотором царстве, в некотором государстве, где звёзды висят так низко, что до них можно дотянуться рукой…"
+    min_age: 4
+    themes: [kingdom, magic]
+  - id: op_long_ago
+    text: "Было это давным-давно, а может, и вчера: сказки ведь время не считают."
+  - id: op_beyond_hills
+    text: "За морями, за горами, за высокими лесами, в маленьком домике с зелёной крышей…"
+    themes: [adventure, home]
+  - id: op_sun_waking
+    text: "Однажды утром, когда солнце только-только просыпалось и потягивалось над крышами…"
+    calm: false
+  - id: op_knock
+    text: "Тук-тук-тук! Кто там? Это сказка пришла к тебе в гости."
+    max_age: 5
+  - id: op_not_long_not_short
+    text: "Расскажу я вам сказку — не длинную, не короткую, а в самый раз."
+  - id: op_animals_talk
+    text: "Давным-давно, когда звери ещё умели разговаривать с детьми, случилась одна добрая история."
+    themes: [animals, forest]
+  - id: op_quiet_wonder
+    text: "Говорят, в этих местах живёт тихое чудо. Хотите узнать, как его нашли?"
+    min_age: 4
+    themes: [magic, nature]
+  - id: op_sea_morning
+    text: "На самом берегу тёплого моря, там, где волны шепчутся с песком, жил-был…"
+    themes: [sea]
+  - id: op_winter_evening
+    text: "Выпал первый снег, и всё вокруг стало тихим-тихим, как будто мир укрыли пуховым одеялом…"
+    themes: [winter, home]
+  - id: op_curious
+    text: "Жил-был на свете любопытный-прелюбопытный… и было у него большое-пребольшое желание всё узнать."
+    min_age: 3
+    themes: [adventure, space, technology]
+
+closings:
+  - id: cl_classic
+    text: "Вот и сказке конец, а кто слушал — молодец."
+  - id: cl_live_well
+    text: "И стали они жить-поживать да добра наживать."
+    themes: [home, friendship]
+  - id: cl_good_dreams
+    text: "Сказка закончилась, а добрые сны только начинаются."
+  - id: cl_stars
+    text: "Звёзды зажглись, дом затих — и до самого утра всем снились добрые сны."
+  - id: cl_home_warm
+    text: "Они вернулись домой, а дома всегда пахнет теплом и чем-то вкусным."
+    themes: [home, food]
+  - id: cl_no_fear
+    text: "И больше никто не боялся: ведь рядом были друзья."
+    themes: [friendship]
+  - id: cl_quiet
+    text: "Вот так и закончилась эта история — тихо, тепло и по-доброму."
+  - id: cl_goodnight_all
+    text: "Спокойной ночи, сказка! Спокойной ночи, дом! Спокойной ночи всем, кто слушал нас!"
+    max_age: 6
+  - id: cl_morning
+    text: "А утром всё было ещё лучше, чем вечером: так бывает, когда рядом добрые друзья."
+    calm: false
+    themes: [friendship]
+  - id: cl_adventure_done
+    text: "Приключение закончилось, а память о нём осталась — как тёплый камешек в кармане."
+    min_age: 4
+    themes: [adventure]
+
+refrains:
+  - id: rf_long_short
+    text: "Долго ли, коротко ли, близко ли, далеко ли — а дорога всё шла и шла."
+    min_age: 3
+    themes: [adventure, kingdom]
+  - id: rf_steps
+    text: "Топ-топ-топ — идёт по тропинке, шур-шур-шур — шуршат листочки."
+    max_age: 5
+    themes: [forest, animals]
+  - id: rf_rain
+    text: "Кап-кап-кап, кап-кап-кап — дождик песенку поёт."
+    max_age: 5
+  - id: rf_pull
+    text: "Тянут-потянут — вытянуть не могут. Позвали на помощь — и дело пошло."
+    max_age: 6
+    themes: [farm, friendship]
+  - id: rf_three
+    text: "Раз, два, три — волшебство, посмотри!"
+    max_age: 7
+    themes: [magic, fairies]
+  - id: rf_hurry
+    text: "Бежит-бежит, торопится, а сердце тихонько радуется."
+    min_age: 3
+    max_age: 7
+  - id: rf_waves
+    text: "Шшш-шшш — шепчут волны, шшш-шшш — плывёт лодочка."
+    max_age: 6
+    themes: [sea]
+  - id: rf_snow
+    text: "Хрум-хрум, хрум-хрум — скрипит снежок под ногами."
+    max_age: 6
+    themes: [winter]
+
+helpers:
+  - id: hp_hedgehog
+    text: "Говорящий ёжик, который знает все тропинки в лесу."
+    themes: [forest, animals]
+  - id: hp_owl
+    text: "Мудрая сова: отвечает не сразу, зато всегда по делу и по-доброму."
+    min_age: 3
+    themes: [forest, animals]
+  - id: hp_firefly
+    text: "Маленькая фея-светлячок, которая освещает дорогу и никогда не торопит."
+    themes: [fairies, magic, nature]
+  - id: hp_wind
+    text: "Добрый ветерок, который подсказывает, куда идти, и подталкивает в спину."
+    themes: [nature, adventure]
+  - id: hp_cloud
+    text: "Облачко-попутчик: плывёт рядом и рассказывает, что видно сверху."
+    themes: [nature, space]
+  - id: hp_herbalist
+    text: "Бабушка-травница с тёплым чаем и домом, где всегда есть место для гостя."
+    min_age: 3
+    themes: [home, food]
+  - id: hp_cat_scholar
+    text: "Кот-учёный в круглых очках: любит загадки и никогда не смеётся над чужими вопросами."
+    min_age: 4
+    themes: [animals, technology]
+  - id: hp_gnome
+    text: "Гномик-мастер, который чинит всё на свете: от сломанной игрушки до плохого настроения."
+    themes: [magic, technology, art]
+  - id: hp_river
+    text: "Речка, которая умеет петь и показывать дорогу тому, кто умеет слушать."
+    themes: [nature, forest, sea]
+  - id: hp_oak
+    text: "Старый дуб, который помнит все дороги и охотно делится тенью."
+    min_age: 3
+    themes: [forest, nature]
+  - id: hp_star
+    text: "Звёздочка, которой не спится: она рада новому другу и знает все небесные тропки."
+    themes: [space, magic]
+  - id: hp_dragonet
+    text: "Маленький дракончик, который боится только щекотки и очень хочет подружиться."
+    min_age: 4
+    themes: [dragons, adventure, magic]
+
+objects:
+  - id: ob_ball_of_yarn
+    text: "Волшебный клубочек: катится туда, где нужна помощь."
+    themes: [magic, home]
+  - id: ob_lantern
+    text: "Фонарик, который светит только на добрые поступки."
+    themes: [magic, adventure]
+  - id: ob_basket
+    text: "Лукошко, в котором никогда не кончаются ягоды, если ими делиться."
+    themes: [food, forest, farm]
+  - id: ob_key
+    text: "Ключик от тайной калитки в самом конце сада."
+    min_age: 3
+    themes: [adventure, magic]
+  - id: ob_star_dust
+    text: "Мешочек звёздной пыли: щепотка — и ночь становится ласковее."
+    themes: [space, magic]
+  - id: ob_scarf
+    text: "Платочек, из которого в трудную минуту получается мост."
+    min_age: 4
+    themes: [magic, adventure]
+  - id: ob_pocket_watch
+    text: "Карманные часы, которые умеют останавливать время на одну тихую минутку."
+    min_age: 5
+    themes: [magic, technology]
+  - id: ob_compass
+    text: "Компас, который показывает не север, а то место, где тебя ждут."
+    min_age: 5
+    themes: [adventure, sea]
+  - id: ob_paint
+    text: "Краски, которыми нарисованное становится настоящим — но только добрым."
+    min_age: 3
+    themes: [art, magic]
+  - id: ob_music_box
+    text: "Музыкальная шкатулка, чья мелодия помогает заснуть даже самым беспокойным."
+    themes: [music, home]
+  - id: ob_snowflake
+    text: "Снежинка, которая не тает в ладони и хранит самое доброе желание."
+    min_age: 3
+    themes: [winter, magic]
+
+lullabies:
+  - id: ll_baiu
+    text: "Баю-баюшки-баю, тихо-тихо запою."
+    max_age: 6
+  - id: ll_evening
+    text: "Баю-баю, засыпай, добрый вечер провожай."
+    max_age: 6
+  - id: ll_moon
+    text: "Тихо-тихо ночь идёт, всех укутает, согреет, и луна в окошко льёт серебристый свет."
+    min_age: 3
+  - id: ll_stars
+    text: "Спят в саду цветы-соседи, спят дорожки и мосты; пусть и ты уснёшь, как дети, под присмотром доброй темноты."
+    min_age: 5
+  - id: ll_cradle
+    text: "Люли-люли, люленьки, спят уже зверюшки; закрывай глаза и ты, а мы споём на ушко."
+    max_age: 5

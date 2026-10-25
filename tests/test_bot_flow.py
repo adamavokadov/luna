@@ -329,5 +329,5 @@ async def test_stale_button_gets_an_alert(client: Client) -> None:
 
 
 async def test_unknown_text_gets_hint(client: Client) -> None:
-    await client.send("привет")
+    await client.send("абракадабра")
     assert texts.UNKNOWN in client.calls.sent_texts()

@@ -1,0 +1,50 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Environments and secrets (commit .env.example, never .env) ---
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# --- Tooling caches and reports ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Runtime data: the bot's database lives here; never commit it ---
+# (anchored on purpose: a bare `data/` would also hide package data directories)
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Editors and OS ---
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# --- AI-assisted workflow: exports, patch scripts and their backups stay local ---
+repomix-output.*
+/patch_*.py
+/patches/
+.patch-backups/
+/*.zip
+.claude/settings.local.json

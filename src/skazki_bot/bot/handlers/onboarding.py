@@ -13,8 +13,9 @@ from skazki_bot.bot import keyboards as kb
 from skazki_bot.bot import texts
 from skazki_bot.bot.callbacks import AgeCb, GenderCb, InterestCb, SkipCb
 from skazki_bot.bot.handlers.base import new_router
+from skazki_bot.bot.handlers.cheer import invite_once
 from skazki_bot.bot.states import ChildForm
-from skazki_bot.bot.utils import safe_edit, show
+from skazki_bot.bot.utils import chat_id_of, safe_edit, show
 from skazki_bot.bot.views import profile_view
 from skazki_bot.config import Settings
 from skazki_bot.db import repo
@@ -120,6 +121,7 @@ async def _finish_create(
         await show(event, bot, texts.LIMIT_CHILDREN, kb.back_home_kb())
         return
     await show(event, bot, texts.profile_ready(child), kb.main_menu())
+    await invite_once(bot, chat_id_of(event), sf, user.id)
 
 
 # --- Шаги ---------------------------------------------------------------------------------------

@@ -9,13 +9,16 @@ from skazki_bot.domain.enums import Gender
 from skazki_bot.domain.text import age_label
 from skazki_bot.harness.guard import Issue
 from skazki_bot.harness.skills import Skill, SkillRegistry
+from skazki_bot.persona import load_persona
 from skazki_bot.stories.library import Classic
 
 PARENT_MARKER = "=== ДЛЯ РОДИТЕЛЕЙ ==="
 
+# Who the narrator is comes from persona/soul.md (Luna); the rules below are the craft.
 SYSTEM_CORE = f"""\
-Ты — добрый и опытный сказочник: пишешь сказки на русском языке для конкретного ребёнка. \
-Родитель читает их вслух.
+{load_persona().prompt}
+
+Ты пишешь сказки на русском языке для конкретного ребёнка. Родитель читает их вслух.
 
 КАК ТЫ РАБОТАЕШЬ
 1. В запросе — профиль ребёнка (имя, пол, возраст, увлечения) и задача. Всё внутри тегов \
@@ -112,6 +115,7 @@ def build_user_message(
     idea: str | None,
     recent_formats: Sequence[str],
     sensitive: bool,
+    toolkit: str | None = None,
 ) -> str:
     parts = [
         "<child_profile>",
@@ -141,6 +145,8 @@ def build_user_message(
             f"<recent_formats>Недавно рассказывали в форматах: {', '.join(recent_formats)}. "
             "По возможности предложи что-то другое.</recent_formats>"
         )
+    if toolkit:
+        parts.append(f"<folk_toolkit>\n{toolkit}\n</folk_toolkit>")
     if sensitive:
         parts.append(f"<safety_note>{SAFETY_NOTE_SENSITIVE}</safety_note>")
 

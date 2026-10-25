@@ -5,8 +5,10 @@ from collections.abc import Mapping, Sequence
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from skazki_bot.bot import texts
 from skazki_bot.bot.callbacks import (
     AgeCb,
+    CheerCb,
     ChildCb,
     GenderCb,
     InterestCb,
@@ -18,6 +20,8 @@ from skazki_bot.bot.callbacks import (
     TaleCb,
     TalesPageCb,
 )
+from skazki_bot.cheer.compose import MOODS
+from skazki_bot.cheer.schedule import FREQUENCIES
 from skazki_bot.db.models import Child, Tale
 from skazki_bot.domain.age import MAX_AGE, MIN_AGE
 from skazki_bot.domain.enums import Gender, TaleLength
@@ -44,8 +48,9 @@ def main_menu() -> InlineKeyboardMarkup:
     b.button(text="🌙 Сказка на ночь", callback_data=MenuCb(action="bedtime"))
     b.button(text="👶 Профиль ребёнка", callback_data=MenuCb(action="profile"))
     b.button(text="📚 Мои сказки", callback_data=MenuCb(action="tales"))
+    b.button(text="💛 Тёплые слова", callback_data=MenuCb(action="cheer"))
     b.button(text="⚙️ Настройки", callback_data=MenuCb(action="settings"))
-    b.adjust(2, 2, 1)
+    b.adjust(2, 2, 2)
     return b.as_markup()
 
 
@@ -290,7 +295,7 @@ def tale_view_kb(page: int) -> InlineKeyboardMarkup:
 
 
 # --- Настройки ----------------------------------------------------------------------------------
-def settings_kb(current: TaleLength) -> InlineKeyboardMarkup:
+def settings_kb(current: TaleLength, cheer_freq: str | None = None) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     for length in TaleLength:
         mark = "✅ " if length is current else ""
@@ -298,6 +303,13 @@ def settings_kb(current: TaleLength) -> InlineKeyboardMarkup:
             text=f"{mark}{length.label}", callback_data=SettingCb(key="length", value=length.value)
         )
     b.adjust(3)
+    if cheer_freq is not None:
+        label = texts.CHEER_FREQ_SHORT.get(cheer_freq, "выкл")
+        b.row(
+            InlineKeyboardButton(
+                text=f"💛 Тёплые слова: {label}", callback_data=CheerCb(action="freq_menu").pack()
+            )
+        )
     b.row(
         InlineKeyboardButton(text="🔒 Приватность", callback_data=SettingCb(key="privacy").pack())
     )
@@ -324,4 +336,68 @@ def confirm_delete_data_kb() -> InlineKeyboardMarkup:
     b.button(text="🗑 Да, удалить всё", callback_data=SettingCb(key="delete_yes"))
     b.button(text="Отмена", callback_data=MenuCb(action="home"))
     b.adjust(2)
+    return b.as_markup()
+
+
+# --- Луна: тёплые слова -------------------------------------------------------------------------
+def cheer_moods_kb() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for mood in (*MOODS, "any"):
+        b.button(
+            text=texts.CHEER_MOOD_LABELS[mood], callback_data=CheerCb(action="mood", mood=mood)
+        )
+    b.adjust(1)
+    b.row(home_button())
+    return b.as_markup()
+
+
+def cheer_after_kb(mood: str = "") -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="💛 Ещё", callback_data=CheerCb(action="more", mood=mood))
+    b.button(text="🌙 Сказку", callback_data=MenuCb(action="new", fresh=True))
+    b.button(text="🏠 Меню", callback_data=MenuCb(action="home", fresh=True))
+    b.adjust(3)
+    return b.as_markup()
+
+
+def cheer_message_kb() -> InlineKeyboardMarkup:
+    """Under a proactive message: another word, a tale, and an always-visible way to stop."""
+    b = InlineKeyboardBuilder()
+    b.button(text="💛 Ещё", callback_data=CheerCb(action="more"))
+    b.button(text="🌙 Сказку", callback_data=MenuCb(action="new", fresh=True))
+    b.button(text="🔕 Не присылать", callback_data=CheerCb(action="freq", value="off", src="msg"))
+    b.adjust(2, 1)
+    return b.as_markup()
+
+
+def cheer_offer_kb(mood: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="💛 Да, пожалуйста", callback_data=CheerCb(action="mood", mood=mood))
+    b.button(text="🏠 Меню", callback_data=MenuCb(action="home"))
+    b.adjust(2)
+    return b.as_markup()
+
+
+def cheer_invite_kb() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(
+        text="💛 Раз в неделю", callback_data=CheerCb(action="freq", value="weekly", src="invite")
+    )
+    b.button(text="🌿 Чаще", callback_data=CheerCb(action="freq", value="few", src="invite"))
+    b.button(text="Не сейчас", callback_data=CheerCb(action="freq", value="off", src="invite"))
+    b.adjust(2, 1)
+    return b.as_markup()
+
+
+def cheer_freq_kb(current: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for freq in FREQUENCIES:
+        mark = "✅ " if freq == current else ""
+        b.button(
+            text=f"{mark}{texts.CHEER_FREQ_LABELS[freq]}",
+            callback_data=CheerCb(action="freq", value=freq, src="settings"),
+        )
+    b.adjust(1)
+    b.row(InlineKeyboardButton(text="← Назад", callback_data=MenuCb(action="settings").pack()))
+    b.row(home_button())
     return b.as_markup()

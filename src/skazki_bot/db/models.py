@@ -16,6 +16,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    false,
 )
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -67,6 +68,12 @@ class User(Base):
     tale_length: Mapped[str] = mapped_column(String(10), default="normal")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
     last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
+
+    # Luna's warm words (cheer skill). Off by default: a proactive message needs consent.
+    cheer_freq: Mapped[str] = mapped_column(String(8), default="off", server_default="off")
+    cheer_asked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    cheer_last_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    cheer_recent: Mapped[list[str] | None] = mapped_column(JSON, default=None)  # last item ids
 
     children: Mapped[list[Child]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True

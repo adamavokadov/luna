@@ -1,4 +1,4 @@
-"""Загрузка и валидация библиотеки классических сюжетов."""
+"""Загрузка и валидация библиотеки классических сюжетов (данные: knowledge/tales/classics.yaml)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ class Classic(BaseModel):
 
 @lru_cache
 def load_classics() -> tuple[Classic, ...]:
-    raw = files("skazki_bot.stories").joinpath("data/classics.yaml").read_text(encoding="utf-8")
+    raw = files("skazki_bot.knowledge").joinpath("tales/classics.yaml").read_text(encoding="utf-8")
     classics = tuple(Classic.model_validate(item) for item in yaml.safe_load(raw))
     ids = [c.id for c in classics]
     if len(ids) != len(set(ids)):

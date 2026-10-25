@@ -3,6 +3,7 @@ from __future__ import annotations
 from aiogram import Router
 
 from skazki_bot.bot.handlers import (
+    cheer,
     errors,
     fallback,
     history,
@@ -24,6 +25,7 @@ def build_router() -> Router:
         profile.router,
         history.router,
         settings.router,
+        cheer.router,
         errors.router,
         fallback.router,
     )

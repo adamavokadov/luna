@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""@@DOC@@"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+if sys.version_info < (3, 10):  # pragma: no cover
+    sys.exit("Python 3.10+ is required")
+
+PATCH_ID = @@PATCH_ID@@
+TITLE = @@TITLE@@
+COMMIT_MESSAGE = @@COMMIT@@
+PROJECT_NAME = "skazki-bot"
+BACKUP_DIR = ".patch-backups"
+LOG_BEGIN = "<!-- HANDOFF:LOG:BEGIN -->"
+PAYLOAD_MARKER = "\n# ===== PAYLOAD (generated; do not edit below this line) =====\n"
+
+
+class PatchError(Exception):
+    """A step cannot be applied. Raised before anything is written."""
+
+
+def sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def load_blocks() -> dict[str, str]:
+    """Text blocks embedded after the payload marker; every line is a comment ('# ' prefix)."""
+    source = Path(__file__).read_text(encoding="utf-8")
+    body = source.split(PAYLOAD_MARKER, 1)[1]
+    blocks: dict[str, str] = {}
+    key: str | None = None
+    lines: list[str] = []
+    for line in body.split("\n"):
+        if line.startswith("#@@@BLOCK ") or line == "#@@@END":
+            if key is not None:
+                blocks[key] = "\n".join(lines)
+            if line == "#@@@END":
+                break
+            key, lines = line[len("#@@@BLOCK ") :].strip(), []
+        elif key is not None:
+            lines.append(line[2:] if line.startswith("# ") else "")
+    return blocks
+
+
+class Workspace:
+    """In-memory view of the files this patch touches; nothing is written until commit()."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.original: dict[str, str | None] = {}
+        self.current: dict[str, str | None] = {}
+        self.log: list[tuple[str, str, str]] = []  # (status, path, detail)
+
+    def read(self, rel: str) -> str | None:
+        if rel not in self.current:
+            path = self.root / rel
+            text = path.read_bytes().decode("utf-8") if path.is_file() else None
+            self.original[rel] = text
+            self.current[rel] = text
+        return self.current[rel]
+
+    def put(self, rel: str, text: str | None) -> None:
+        self.read(rel)
+        self.current[rel] = text
+
+    def note(self, status: str, rel: str, detail: str = "") -> None:
+        self.log.append((status, rel, detail))
+
+
+# --- Operations ---------------------------------------------------------------------------------
+def op_write(ws: Workspace, rel: str, text: str, mode: str, expect_sha: str | None) -> None:
+    current = ws.read(rel)
+    if current is None:
+        ws.put(rel, text)
+        ws.note("create", rel)
+    elif current == text:
+        ws.note("ok", rel, "already up to date")
+    elif mode == "overwrite":
+        if expect_sha and sha256(current) != expect_sha:
+            ws.note("warn", rel, "differed from the repomix export; replaced (backup kept)")
+        ws.put(rel, text)
+        ws.note("replace", rel)
+    elif mode == "if_missing":
+        ws.note("kept", rel, "already exists; left untouched")
+    else:
+        ws.note("warn", rel, "exists with different content; left untouched")
+
+
+def op_replace(ws: Workspace, rel: str, old: str, new: str) -> None:
+    current = ws.read(rel)
+    if current is None:
+        raise PatchError(f"{rel}: file not found")
+    if new in current:
+        ws.note("ok", rel, "hunk already applied")
+        return
+    count = current.count(old)
+    if count == 0:
+        raise PatchError(
+            f"{rel}: anchor not found. The file differs from the repomix export this patch was "
+            f"built from. Send a fresh export.\n--- expected snippet ---\n{old[:500]}"
+        )
+    if count > 1:
+        raise PatchError(f"{rel}: anchor is ambiguous ({count} matches)")
+    ws.put(rel, current.replace(old, new, 1))
+    ws.note("edit", rel)
+
+
+def op_move(ws: Workspace, src: str, dst: str) -> None:
+    source, target = ws.read(src), ws.read(dst)
+    if source is None and target is not None:
+        ws.note("ok", dst, "already moved")
+        return
+    if source is None:
+        raise PatchError(f"{src}: not found (needed to create {dst})")
+    if target is not None and target != source:
+        raise PatchError(f"{dst} already exists with different content; cannot move {src} onto it")
+    ws.put(dst, source)
+    ws.put(src, None)
+    ws.note("move", f"{src} -> {dst}")
+
+
+def op_append_lines(ws: Workspace, rel: str, text: str) -> None:
+    """Merge ignore-style files: add only the entries that are missing."""
+    current = ws.read(rel)
+    if current is None:
+        ws.put(rel, text)
+        ws.note("create", rel)
+        return
+    have = {line.strip() for line in current.splitlines()}
+    missing = [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#") and line.strip() not in have
+    ]
+    if not missing:
+        ws.note("ok", rel, "nothing to add")
+        return
+    separator = "" if not current or current.endswith("\n") else "\n"
+    header = f"\n# --- added by patch {PATCH_ID} ---\n"
+    ws.put(rel, current + separator + header + "\n".join(missing) + "\n")
+    ws.note("edit", rel, f"{len(missing)} entries added")
+
+
+def op_handoff(ws: Workspace, entry: str) -> None:
+    rel = "HANDOFF.md"
+    current = ws.read(rel)
+    if current is None:
+        raise PatchError("HANDOFF.md not found (the patch creates it before this step)")
+    heading = entry.strip().splitlines()[0]
+    if heading in current:
+        ws.note("ok", rel, "session-log entry already present")
+        return
+    if LOG_BEGIN not in current:
+        raise PatchError(f"HANDOFF.md has no {LOG_BEGIN} marker")
+    ws.put(rel, current.replace(LOG_BEGIN, LOG_BEGIN + "\n\n" + entry.strip() + "\n", 1))
+    ws.note("edit", rel, "session-log entry added")
+
+
+def run_ops(ws: Workspace, blocks: dict[str, str]) -> None:
+    for op in OPS:
+        kind = op[0]
+        if kind == "move":
+            op_move(ws, op[1], op[2])
+        elif kind == "write":
+            op_write(ws, op[1], blocks[op[2]], op[3], op[4])
+        elif kind == "append_lines":
+            op_append_lines(ws, op[1], blocks[op[2]])
+        elif kind == "replace":
+            op_replace(ws, op[1], blocks[op[2]], blocks[op[3]])
+        elif kind == "handoff":
+            op_handoff(ws, blocks[op[1]])
+        else:  # pragma: no cover
+            raise PatchError(f"unknown operation {kind!r}")
+
+
+# --- Environment ----------------------------------------------------------------------------------
+def find_root(arg: str | None) -> Path:
+    if arg:
+        return Path(arg).resolve()
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        return Path(out)
+    except (OSError, subprocess.CalledProcessError):
+        return Path.cwd()
+
+
+def check_project(root: Path) -> None:
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file() or f'name = "{PROJECT_NAME}"' not in pyproject.read_text("utf-8"):
+        raise PatchError(
+            f"{root} does not look like the {PROJECT_NAME} repository "
+            f"(no pyproject.toml with name = \"{PROJECT_NAME}\"). Run from the repo root or pass --root."
+        )
+
+
+def git_dirty(root: Path) -> int:
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, check=True
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return 0
+    return len([line for line in out.splitlines() if line.strip()])
+
+
+def prune_empty_parents(path: Path, root: Path) -> None:
+    """Remove directories left empty by a move or a rollback (never the repo root)."""
+    for parent in path.parents:
+        if parent == root:
+            break
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+
+
+# --- Commit and rollback -----------------------------------------------------------------------
+def commit(ws: Workspace, root: Path) -> Path:
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = root / BACKUP_DIR / PATCH_ID / stamp
+    manifest: dict[str, list[str]] = {"created": [], "modified": [], "deleted": []}
+    for rel, new in ws.current.items():
+        old = ws.original[rel]
+        if new == old:
+            continue
+        path = root / rel
+        if old is not None:
+            backup = run_dir / "files" / rel
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            backup.write_bytes(old.encode("utf-8"))
+        if new is None:
+            path.unlink()
+            manifest["deleted"].append(rel)
+            prune_empty_parents(path, root)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(new.encode("utf-8"))
+            manifest["created" if old is None else "modified"].append(rel)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return run_dir
+
+
+def rollback(root: Path) -> None:
+    base = root / BACKUP_DIR / PATCH_ID
+    runs = sorted(p for p in base.glob("*") if (p / "manifest.json").is_file()) if base.is_dir() else []
+    if not runs:
+        raise PatchError("no backup found for this patch; nothing to roll back")
+    run_dir = runs[-1]
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    for rel in manifest["created"]:
+        path = root / rel
+        path.unlink(missing_ok=True)
+        prune_empty_parents(path, root)
+    for rel in manifest["modified"] + manifest["deleted"]:
+        target = root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(run_dir / "files" / rel, target)
+    (run_dir / "manifest.json").rename(run_dir / "manifest.rolled-back.json")
+    print(f"✓ rolled back patch {PATCH_ID} from {run_dir.relative_to(root)}")
+
+
+def verify(root: Path) -> int:
+    """uv sync + make check; explains what to install instead of crashing when a tool is missing."""
+    missing = [tool for tool in ("uv", "make") if shutil.which(tool) is None]
+    if missing:
+        print(f"\n✗ Cannot verify: {' and '.join(missing)} not found on PATH. The patch itself was applied.")
+        if "uv" in missing:
+            print("  Install uv:   pip install uv      (docs: https://docs.astral.sh/uv/)")
+        if "make" in missing:
+            print("  Install make: sudo apt-get update && sudo apt-get install -y make")
+        print("  Then run:     uv sync --all-extras && make check")
+        return 2
+    print("\nVerifying: uv sync --all-extras && make check")
+    for command in (["uv", "sync", "--all-extras"], ["make", "check"]):
+        try:
+            code = subprocess.call(command, cwd=root)
+        except OSError as exc:
+            print(f"✗ could not run {' '.join(command)}: {exc}")
+            return 2
+        if code:
+            print(f"✗ `{' '.join(command)}` failed (exit {code}); see the output above")
+            return code
+    print("✓ make check passed")
+    return 0
+
+
+# --- Reporting -------------------------------------------------------------------------------------
+def summarize(ws: Workspace, verbose: bool) -> None:
+    symbols = {"create": "+", "replace": "~", "edit": "~", "move": ">", "warn": "!", "kept": "=", "ok": "="}
+    quiet = {"ok"}
+    edits: dict[str, int] = {}
+    for status, rel, _ in ws.log:
+        if status == "edit":
+            edits[rel] = edits.get(rel, 0) + 1
+    shown_edit: set[str] = set()
+    for status, rel, detail in ws.log:
+        if status in quiet and not verbose:
+            continue
+        if status == "edit" and rel in shown_edit:
+            continue
+        if status == "edit":
+            shown_edit.add(rel)
+            count = edits[rel]
+            extra = detail or (f"{count} hunk{'s' if count > 1 else ''}")
+            print(f"  {symbols[status]} edit     {rel}  ({extra})")
+            continue
+        extra = f"  ({detail})" if detail else ""
+        print(f"  {symbols[status]} {status:<8} {rel}{extra}")
+    already = sum(1 for status, _, _ in ws.log if status == "ok")
+    if already and not verbose:
+        print(f"  = {already} step(s) already applied (use -v to list)")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=f"Patch {PATCH_ID}: {TITLE}")
+    parser.add_argument("--dry-run", action="store_true", help="show the plan, change nothing")
+    parser.add_argument("--verify", action="store_true", help="after applying: uv sync + make check")
+    parser.add_argument("--rollback", action="store_true", help="undo the last application")
+    parser.add_argument("--archive", action="store_true", help="move this script to patches/ afterwards")
+    parser.add_argument("--root", help="repository root (default: git top-level or cwd)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="list already-applied steps too")
+    args = parser.parse_args(argv)
+
+    try:
+        root = find_root(args.root)
+        check_project(root)
+        print(f"Patch {PATCH_ID}: {TITLE}\nRepository: {root}")
+        if args.rollback:
+            rollback(root)
+            return 0
+        ws = Workspace(root)
+        run_ops(ws, load_blocks())
+    except PatchError as exc:
+        print(f"✗ {exc}\n\nNothing was changed.")
+        return 1
+
+    summarize(ws, args.verbose)
+    changed = [rel for rel, new in ws.current.items() if new != ws.original[rel]]
+    if args.dry_run:
+        print(f"\nDry run: {len(changed)} file(s) would change. Nothing was written.")
+        return 0
+
+    dirty = git_dirty(root)
+    if changed:
+        run_dir = commit(ws, root)
+        print(f"\n✓ Applied: {len(changed)} file(s) changed. Backup: {run_dir.relative_to(root)}")
+        if dirty:
+            print(f"  note: the working tree already had {dirty} uncommitted change(s) before this patch")
+    else:
+        print("\n✓ Already applied: nothing to change.")
+
+    code = verify(root) if args.verify else 0
+    if args.archive:
+        target = root / "patches" / Path(__file__).name
+        target.parent.mkdir(exist_ok=True)
+        shutil.move(__file__, target)
+        print(f"  script moved to {target.relative_to(root)}")
+
+    steps: list[str] = []
+    if shutil.which("uv") is None and not args.verify:
+        steps.append("pip install uv && uv sync --all-extras   # uv was not found on PATH")
+    if not args.verify:
+        steps.append("make check")
+    steps += [
+        "review HANDOFF.md (session-log entry) and CHANGELOG.md",
+        f'git add -A && git commit -m "{COMMIT_MESSAGE.splitlines()[0]}"',
+        f"undo if needed: python3 {Path(__file__).name} --rollback",
+    ]
+    print("\nNext steps:")
+    for number, step in enumerate(steps, 1):
+        print(f"  {number}. {step}")
+    return code
+
+
+OPS: list[tuple[str, ...]] = []  # filled in below by the generator
+

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml",
+    "fileSummary": true,
+    "directoryStructure": true,
+    "showLineNumbers": false
+  },
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": ["uv.lock", "patch_*.py", "patches/**", ".patch-backups/**", "*.db"]
+  },
+  "security": { "enableSecurityCheck": true }
+}

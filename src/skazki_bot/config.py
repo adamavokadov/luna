@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     timezone: str = "Europe/Moscow"  # граница «суток» для дневного лимита
     admin_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)  # без лимитов
 
+    # --- Luna's warm words (cheer skill) ---
+    cheer_enabled: bool = True  # master switch for proactive messages (users still opt in)
+    cheer_tick_s: float = Field(default=300.0, gt=0)  # how often the scheduler looks for due users
+    cheer_window_start: int = Field(default=10, ge=0, le=23)  # local hour, inclusive
+    cheer_window_end: int = Field(default=21, ge=1, le=24)  # local hour, exclusive
+    cheer_batch_size: int = Field(default=40, ge=1)  # max proactive messages per tick
+
     # --- Логи ---
     log_level: str = "INFO"
     log_json: bool = False
@@ -77,6 +84,8 @@ class Settings(BaseSettings):
             raise ValueError("ANTHROPIC_API_KEY обязателен при LLM_PROVIDER=anthropic")
         if self.run_mode == "webhook" and not self.webhook_base_url:
             raise ValueError("WEBHOOK_BASE_URL обязателен при RUN_MODE=webhook")
+        if self.cheer_window_end <= self.cheer_window_start:
+            raise ValueError("CHEER_WINDOW_END должен быть больше CHEER_WINDOW_START")
         return self
 
 
