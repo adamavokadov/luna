@@ -80,3 +80,39 @@ async def test_evals_cover_every_skill_for_every_sample_child(
         if bedtime and skill == "auto":
             continue
         assert skill in out
+
+
+async def test_smoke_runs_two_tales_for_one_child_and_the_critic_shows_up(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from skazki_bot.config import Settings
+    from skazki_bot.evals import run_evals
+
+    settings = Settings(bot_token="1:T", llm_provider="fake", _env_file=None)  # type: ignore[call-arg]
+    code = await run_evals(settings, [], bedtime=False, smoke=True)
+    out = capsys.readouterr().out
+    assert code == 0, out
+    rows = [line for line in out.splitlines() if line.startswith(("original", "auto"))]
+    assert len(rows) == 2 and all("Маша" in row for row in rows)
+    assert "Артём" not in out and "Соня" not in out
+    assert "thinking=between_tools" in out and "effort=medium" in out
+    assert all("да" in row for row in rows)  # the critic column
+
+
+async def test_smoke_fails_loudly_when_the_critic_silently_does_not_run(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from skazki_bot.config import Settings
+    from skazki_bot.evals import run_evals
+    from skazki_bot.llm.base import LLMError
+    from skazki_bot.llm.fake import FakeLLM
+
+    async def broken_critic(self: FakeLLM, **kwargs: object) -> tuple[str, object]:
+        raise LLMError("schema rejected")
+
+    monkeypatch.setattr(FakeLLM, "complete", broken_critic)
+    settings = Settings(bot_token="1:T", llm_provider="fake", _env_file=None)  # type: ignore[call-arg]
+    code = await run_evals(settings, [], bedtime=False, smoke=True)
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "критик не отработал" in out

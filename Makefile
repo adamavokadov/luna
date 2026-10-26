@@ -1,4 +1,4 @@
-.PHONY: install migrate run test lint fmt typecheck check skills-check kb-check unpack eval revision docker-up
+.PHONY: install migrate run test lint fmt typecheck check skills-check kb-check unpack eval smoke revision docker-up
 
 UV ?= uv
 
@@ -33,6 +33,9 @@ kb-check:  ## Validate the knowledge bases, Luna's persona and the cheer skill
 
 unpack:  ## Rebuild a repo from a repomix export: make unpack src=repomix-output.xml dst=/tmp/repo
 	python3 tools/unpack_repomix.py $(src) $(dst)
+
+smoke:  ## Quick live check: 2 tales (explicit + auto) with the critic; fails if the critic silently did not run
+	$(UV) run python -m skazki_bot.evals --smoke
 
 eval:  ## Прогнать форматы на эталонных профилях (LLM_PROVIDER=fake — офлайн; make eval skill=bedtime)
 	$(UV) run python -m skazki_bot.evals $(if $(skill),--skill $(skill),)

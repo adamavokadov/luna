@@ -17,7 +17,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
   toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`); LLM layer made native to
   Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling.
-- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (325 tests, ruff, mypy
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (327 tests, ruff, mypy
   `--strict`, skills check, knowledge check).
 - **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
@@ -65,6 +65,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
    (`thinking: between_tools | adaptive`, `output_config.effort`, `output_config.format` JSON schema, `strict: true` tools) were
    written from the Claude Platform docs for Sonnet 5.5 and Haiku 5.5 (read 2026-10-25) and never accepted by the live API:
    a 400 on the first real request means a schema or parameter mismatch (kill switch for tools: `LLM_STRICT_TOOLS=false`).
+   `make smoke` is the cheapest way to find out.
    Strict tools and the critic schema also add one-time grammar-compile latency on the first request. Same for `RedisStorage` with
    redis-py 7.4.1: constructed in a smoke test, never connected to a server.
 9. **Python patch level:** the sandbox ran 3.14.4; the Docker and Codespace images carry newer 3.14.x.
@@ -103,7 +104,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 2. `make run` (fake LLM is fine) and click through: first profile → invitation, `/cheer`, Settings → warm words, small talk phrases.
 3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
 4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
-5. `make eval` with a real key: the first live run of the new request shapes (item 8) and the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
+5. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
 6. Native-speaker read-through of Russian copy; extend the KBs (target: 100+ compliments).
 7. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
 8. Decide on a LICENSE and add it.
@@ -123,6 +124,24 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-10-26 — patch 0005-live-smoke-check
+
+**Goal:** make the one thing still unverified after 0004, the live API accepting the new request shapes, cheap to check.
+
+**Why:** the critic fails open by design, so a rejected schema or parameter on the live API would have looked like a healthy run in `make eval`. And a full eval is 40+ paid calls for what is a yes/no question.
+
+**Changed**
+- `python -m skazki_bot.evals --smoke` (`make smoke`): the first sample child, one explicit format (single turn) and "surprise me" (the `load_skill` tool loop with thinking blocks and strict tools); prints a settings line (model, resolved thinking, effort, strict tools, critic model and effort); exits 1 if the critic was enabled and did not run. `run_evals(..., smoke=False)` keeps its old signature for existing callers.
+- The eval table gained a critic column (`крит.`) for every run.
+- Docs: AGENTS.md and README (command), HANDOFF (next step 5, unverified item 8), PLAN, CHANGELOG.
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green (327 tests, ruff, mypy `--strict`, skills and knowledge checks); two new tests (smoke runs two tales for one child with the critic column, and smoke fails loudly when the critic is made to fail); the offline smoke output was read; the patch was applied to a fresh copy of the post-0004 export (dry run, apply, second run, rollback, anchor drift) and the chain 0003, 0004, 0005 was applied to the original export, followed by `uv lock --upgrade`, `uv sync` and `make check`.
+
+**Unverified:** `make smoke` against the real API has not run (no key in the sandbox); that run is the verification of 0004's request shapes.
+
+**Next:** with a real `ANTHROPIC_API_KEY`: `make smoke`; if it prints a 400, send the exact line; then `make eval` for the effort sweep.
+
 
 ### 2026-10-25 — patch 0004-claude-5-5-llm-layer
 

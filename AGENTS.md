@@ -56,6 +56,7 @@ make test               # pytest only
 make kb-check           # validate knowledge bases, persona, cheer skill
 make skills-check       # validate tale skills (dir=./path for custom ones)
 make eval               # every format x 3 profiles (LLM_PROVIDER=fake works offline)
+make smoke              # 2 tales (explicit + auto) with the critic: the first command to run with a real key
 make revision m="..."   # new Alembic migration after model changes
 make unpack src=repomix-output.xml dst=/tmp/repo   # rebuild a repo from a repomix export
 ```

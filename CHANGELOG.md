@@ -11,6 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   `GUARD_EFFORT=low`; Sonnet 5.5 runs `between_tools`, other models adaptive); strict tool use for the four skill tools
   (`LLM_STRICT_TOOLS`); the critic answers under a JSON schema (`CRITIC_SCHEMA`, structured outputs); `ModelRefusal` /
   `ModelRefused` carry the refusal's policy category; run outcome `refused`. 29 new tests (325 total).
+- `make smoke` (`python -m skazki_bot.evals --smoke`): one child, an explicit format and "surprise me" (the tool loop), settings line,
+  a critic column; exits 1 if the critic silently did not run. The eval table shows the critic for every run. 2 new tests (327 total).
 - **Luna's persona**: `persona/soul.md` (character, voice, boundaries, examples) with a validated
   runtime block that becomes the head of the system prompt; `load_persona()`.
 - **Knowledge bases** under `knowledge/`: a folk toolkit for tales (12 openings, 10 closings,
@@ -33,7 +35,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   engine and builder, with its own tests).
 - **Docs**: `docs/KNOWLEDGE.md`, `docs/CHEER.md`, `docs/MODUS_OPERANDI.md`,
   `docs/PROJECT_INSTRUCTIONS.md`; README rewritten.
-- 108 new tests (294 total); 296 after the toolchain upgrade and its fixes; 325 after the LLM-layer upgrade.
+- 108 new tests (294 total); 296 after the toolchain upgrade and its fixes; 325 after the LLM-layer upgrade; 327 with `make smoke`.
 
 ### Fixed
 - Per the Claude Platform docs for Sonnet 5.5, the adapter would have run every tale at default adaptive thinking and `high` effort (slow and costly),

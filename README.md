@@ -118,6 +118,7 @@ personal hour, with **Not now / Stop** always one tap away. Off by default. Full
    make run          # migrations + bot (polling)
    make check        # ruff + mypy + pytest + skills + knowledge checks: what CI runs
    make eval         # every format × 3 profiles: size, steps, issues, tokens, time
+   make smoke        # quick live check (real key): 2 tales + critic; fails if the critic silently did not run
    ```
 
 > A Codespace sleeps when idle, and the bot with it. For 24/7 operation deploy to a host (below).
