@@ -133,7 +133,7 @@ class GenerationRun(Base):
     )
     skill: Mapped[str | None] = mapped_column(String(40), default=None)
     model: Mapped[str] = mapped_column(String(80), default="")
-    outcome: Mapped[str] = mapped_column(String(16), default="ok")  # ok | blocked | error
+    outcome: Mapped[str] = mapped_column(String(16), default="ok")  # ok | blocked | refused | error
     steps: Mapped[int] = mapped_column(SmallInteger, default=0)
     tool_calls: Mapped[list[str]] = mapped_column(JSON, default=list)
     issues: Mapped[list[str]] = mapped_column(JSON, default=list)  # коды замечаний guard-слоя

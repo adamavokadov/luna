@@ -89,6 +89,16 @@ class GuardBlocked(HarnessError):
     """Готовая сказка не прошла проверки безопасности/качества и не будет показана."""
 
 
+class ModelRefused(HarnessError):
+    """The model declined to write this tale (`stop_reason: refusal`); only the policy category is kept."""
+
+    def __init__(
+        self, message: str, trace: RunTrace | None = None, category: str | None = None
+    ) -> None:
+        super().__init__(message, trace)
+        self.category = category
+
+
 class InputRejected(Exception):
     """Ввод родителя не принят: кризисная тема или попытка изменить инструкции."""
 

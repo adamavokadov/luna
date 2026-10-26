@@ -150,6 +150,9 @@ Full commented list: [`.env.example`](.env.example). Key variables:
 | `LLM_PROVIDER` | `anthropic` | `anthropic` or `fake` |
 | `ANTHROPIC_API_KEY` | — | Anthropic key |
 | `LLM_MODEL` / `GUARD_MODEL` | `claude-sonnet-5-5` / `claude-haiku-5-5` | main model / cheap critic |
+| `LLM_EFFORT` / `LLM_THINKING` | `medium` / `auto` | Claude 5.x thinking depth; `auto` = no up-front thinking on Sonnet 5.5, adaptive on other models |
+| `GUARD_EFFORT` | `low` | thinking depth of the critic |
+| `LLM_STRICT_TOOLS` | `true` | strict tool use for the skill tools (kill switch) |
 | `CRITIC_ENABLED` | `true` | LLM check of the finished tale |
 | `HARNESS_MAX_STEPS` / `_MAX_REVISIONS` / `_TIMEOUT_S` | `4` / `1` / `180` | harness bounds |
 | `SKILLS_DIR` | — | extra skills directory (overrides built-ins) |

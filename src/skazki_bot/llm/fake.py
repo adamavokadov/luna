@@ -91,7 +91,13 @@ class FakeLLM:
         )
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int, model: str | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int,
+        model: str | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> tuple[str, Usage]:
         return '{"ok": true, "issues": []}', Usage(input_tokens=300, output_tokens=12)
 

@@ -14,16 +14,17 @@ from skazki_bot.harness import (
     GuardBlocked,
     HarnessError,
     InputRejected,
+    ModelRefused,
     RecentTale,
     RunInput,
     RunRequest,
     SkillRegistry,
     TaleHarness,
 )
-from skazki_bot.harness.prompts import LAST_STEP_NOTE
+from skazki_bot.harness.prompts import CRITIC_SCHEMA, LAST_STEP_NOTE
 from skazki_bot.harness.tools import ToolContext, ToolExecutor
 from skazki_bot.knowledge import load_folk_toolkit
-from skazki_bot.llm.base import LLMError, ToolCall, ToolSpec
+from skazki_bot.llm.base import LLMError, ModelRefusal, ToolCall, ToolSpec
 from skazki_bot.llm.fake import FakeLLM
 from skazki_bot.stories.library import load_classics
 from skazki_bot.stories.selector import SelectionContext
@@ -499,3 +500,64 @@ async def test_fake_llm_routing_ignores_the_folk_toolkit_block() -> None:
             max_tokens=200,
         )
         assert result.tool_calls[0].input == {"name": "original"}, entry.id
+
+
+# --- Claude 5.x: thinking blocks, structured critic, refusals --------------------------------------
+THINKING = {"type": "thinking", "thinking": "", "signature": "SIG-1"}
+
+
+async def test_thinking_blocks_survive_the_tool_loop(registry: SkillRegistry) -> None:
+    first = tool_turn("load_skill", {"name": "original"})
+    first.assistant_content.insert(0, dict(THINKING))
+    chat = ScriptedChat([first, text_turn(make_story())])
+    await harness_for(registry, chat).run(
+        run_input()
+    )  # auto mode: the model loads the skill itself
+
+    replayed = chat.calls[1]["messages"][1]
+    assert replayed["role"] == "assistant"
+    assert replayed["content"] == first.assistant_content  # thinking block first, unmodified
+    assert replayed["content"][0] == THINKING
+
+
+async def test_thinking_blocks_survive_a_revision_and_the_history_stays_append_only(
+    registry: SkillRegistry,
+) -> None:
+    first = text_turn(make_story())
+    first.assistant_content.insert(0, dict(THINKING))
+    critic = [
+        '{"ok": false, "issues": [{"code": "gender", "severity": "fix", "message": "Род"}]}',
+        '{"ok": true, "issues": []}',
+    ]
+    chat = ScriptedChat([first, text_turn(make_story())], critic=critic)
+    await harness_for(registry, chat, critic_enabled=True).run(run_input(skill="original"))
+
+    before, after = chat.calls[0]["messages"], chat.calls[1]["messages"]
+    assert after[: len(before)] == before  # nothing earlier was edited
+    assert after[1]["content"][0] == THINKING
+
+
+async def test_critic_gets_the_json_schema(registry: SkillRegistry) -> None:
+    chat = ScriptedChat([text_turn(make_story())])
+    await harness_for(registry, chat, critic_enabled=True).run(run_input(skill="original"))
+    assert chat.complete_calls[0]["schema"] == CRITIC_SCHEMA
+
+
+async def test_model_refusal_becomes_model_refused_with_category_and_trace(
+    registry: SkillRegistry,
+) -> None:
+    chat = ScriptedChat([ModelRefusal("general_harms")])
+    with pytest.raises(ModelRefused) as info:
+        await harness_for(registry, chat).run(run_input(skill="original"))
+    assert info.value.category == "general_harms"
+    assert isinstance(info.value, HarnessError)  # callers that handle harness errors keep working
+    assert info.value.trace is not None and info.value.trace.steps == 1
+
+
+async def test_a_refusing_critic_does_not_block_but_is_visible_in_the_trace(
+    registry: SkillRegistry,
+) -> None:
+    chat = ScriptedChat([text_turn(make_story())], critic=[ModelRefusal("general_harms")])
+    result = await harness_for(registry, chat, critic_enabled=True).run(run_input(skill="original"))
+    assert result.body
+    assert result.trace.critic_used is False  # the deterministic checks ran; the critic did not

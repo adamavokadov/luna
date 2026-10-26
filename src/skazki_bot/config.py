@@ -8,6 +8,19 @@ from typing import Annotated, Literal
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+Effort = Literal["low", "medium", "high", "xhigh", "max"]
+ThinkingMode = Literal["auto", "adaptive", "between_tools"]
+# `between_tools` = the lowest thinking setting (no up-front thinking, short updates between tool calls).
+# It exists on Claude Sonnet 5.5 only; every other current model knows adaptive thinking.
+BETWEEN_TOOLS_MODELS = frozenset({"claude-sonnet-5-5"})
+
+
+def resolve_thinking(model: str, mode: ThinkingMode) -> Literal["adaptive", "between_tools"]:
+    """`auto` picks the cheapest thinking setting the model supports."""
+    if mode == "auto":
+        return "between_tools" if model in BETWEEN_TOOLS_MODELS else "adaptive"
+    return mode
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -32,9 +45,17 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-5-5"
     llm_max_tokens: int = Field(default=4500, ge=500)
     llm_timeout_s: float = Field(default=90.0, gt=0)
+    # Claude 5.5 thinks by default (adaptive, effort `high`). A bedtime tale is latency-sensitive creative writing:
+    # no up-front thinking on Sonnet 5.5 and `medium` effort. Re-run `make eval` before changing these.
+    llm_effort: Effort = "medium"
+    llm_thinking: ThinkingMode = "auto"
+    llm_strict_tools: bool = (
+        True  # strict tool use: tool inputs always match their schema (kill switch)
+    )
 
     # --- Харнесс (агентный цикл, навыки, guardrails) ---
     guard_model: str = "claude-haiku-5-5"  # дешёвая быстрая модель для LLM-критика
+    guard_effort: Effort = "low"  # the critic is a classifier: keep its thinking small
     critic_enabled: bool = True  # LLM-проверка готовой сказки (безопасность, возраст, род, имя)
     harness_max_steps: int = Field(default=4, ge=1, le=8)  # ходов «модель ↔ инструменты»
     harness_max_revisions: int = Field(default=1, ge=0, le=2)  # правок по замечаниям критика
@@ -86,6 +107,13 @@ class Settings(BaseSettings):
             raise ValueError("WEBHOOK_BASE_URL обязателен при RUN_MODE=webhook")
         if self.cheer_window_end <= self.cheer_window_start:
             raise ValueError("CHEER_WINDOW_END должен быть больше CHEER_WINDOW_START")
+        if resolve_thinking(self.llm_model, self.llm_thinking) == "between_tools" and (
+            self.llm_effort in ("xhigh", "max")
+        ):
+            raise ValueError(
+                "LLM_THINKING=between_tools works with LLM_EFFORT low, medium or high; "
+                "use LLM_THINKING=adaptive for xhigh or max"
+            )
         return self
 
 

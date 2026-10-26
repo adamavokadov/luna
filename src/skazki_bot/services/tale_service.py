@@ -17,6 +17,7 @@ from skazki_bot.harness import (
     ChildSnapshot,
     GuardBlocked,
     HarnessError,
+    ModelRefused,
     RecentTale,
     RunInput,
     RunRequest,
@@ -165,7 +166,13 @@ class TaleService:
             await self._record_failure(user_id, request, RunTrace(), "error")
             raise LLMError("Превышено время генерации") from exc
         except HarnessError as exc:
-            outcome = "blocked" if isinstance(exc, GuardBlocked) else "error"
+            outcome = (
+                "blocked"
+                if isinstance(exc, GuardBlocked)
+                else "refused"
+                if isinstance(exc, ModelRefused)
+                else "error"
+            )
             await self._record_failure(user_id, request, exc.trace or RunTrace(), outcome)
             raise
 

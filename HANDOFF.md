@@ -15,8 +15,9 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 
 - **State as of 2026-10-25:** Luna persona, two knowledge bases and the warm-words skill are
   implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
-  toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`).
-- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (296 tests, ruff, mypy
+  toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`); LLM layer made native to
+  Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling.
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (325 tests, ruff, mypy
   `--strict`, skills check, knowledge check).
 - **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
@@ -40,7 +41,8 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 ## 3. Unverified / needs a human
 
 1. **Real model output** with the persona and folk toolkit: run `make eval` with a real
-   `ANTHROPIC_API_KEY`, read tales for several ages and formats; tune `soul.md` if the tone drifts.
+   `ANTHROPIC_API_KEY`, read tales for several ages and formats; tune `soul.md` if the tone drifts. The same run is the
+   effort sweep for D20: compare `LLM_EFFORT` low / medium / high on length, quality, latency and cost.
 2. **Live Telegram:** scheduled message delivery; rendering of «Лу́на» (combining accent) and of
    the 😮‍💨 button label on all clients.
 3. **Native-speaker read of all Russian copy:** `knowledge/cheer/*.yaml`, `bot/texts.py`,
@@ -59,7 +61,11 @@ verified. It is the memory between sessions (human or AI). Read it right after `
    `redis:8-alpine`; Docker is not available in the authoring sandbox, only the builder's `uv sync --frozen --no-dev --extra redis
    --no-editable` was replayed on 3.14) and webhook mode with the scheduler running in several replicas.
 8. **Real Anthropic API with SDK 2.x:** the adapter passes its tests against a fake HTTP transport on `anthropic` 2.3.0
-   (the floor used to be 1.15); streaming and tool use against the live API are untested. Same for `RedisStorage` with
+   (the floor used to be 1.15); streaming and tool use against the live API are untested. The request shapes
+   (`thinking: between_tools | adaptive`, `output_config.effort`, `output_config.format` JSON schema, `strict: true` tools) were
+   written from the Claude Platform docs for Sonnet 5.5 and Haiku 5.5 (read 2026-10-25) and never accepted by the live API:
+   a 400 on the first real request means a schema or parameter mismatch (kill switch for tools: `LLM_STRICT_TOOLS=false`).
+   Strict tools and the critic schema also add one-time grammar-compile latency on the first request. Same for `RedisStorage` with
    redis-py 7.4.1: constructed in a smoke test, never connected to a server.
 9. **Python patch level:** the sandbox ran 3.14.4; the Docker and Codespace images carry newer 3.14.x.
 
@@ -86,15 +92,18 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D17 | Floors in `pyproject.toml` = versions `make check` ran against; `anthropic>=2.3,<3`, `redis>=7.4,<8` | Reproducible without a lock; `redis<8` follows aiogram's `RedisStorage` declaration |
 | D18 | CI actions pinned by commit SHA (+ version comment); `uv sync --locked` in CI | `setup-uv` v8+ has no floating tags; a stale lock must fail loudly |
 | D19 | `postgres:18-alpine` (volume `pgdata18` at `/var/lib/postgresql`) and `redis:8-alpine` in compose | PG 19 is RC only (GA planned 2026-11-19), 18 is the newest release; a new volume name leaves any old PG 17 volume untouched; Redis only holds FSM state |
+| D20 | Sonnet 5.5 runs `between_tools` at `medium` effort (`LLM_THINKING=auto`, `LLM_EFFORT=medium`); the critic runs Haiku 5.5 at `low` | Claude 5.5 thinks by default at `high`; tales are latency-sensitive streamed text and up-front thinking would show nothing for seconds. Needs the effort sweep (item 1 above) |
+| D21 | `assistant_content` keeps every reply block, thinking blocks verbatim; the history is append-only | The API requires thinking blocks back with tool results and rejects edits to earlier turns |
+| D22 | A model refusal is `ModelRefused` (category only), run outcome `refused`, same gentle message as a guard block; the critic still fails open but a failed critic leaves `critic_used=False` | No new user copy; no refusal content or explanation is stored; deterministic checks always ran |
 
 ## 5. Next steps (prioritized)
 
-1. After patch 0003: `uv lock --upgrade && uv sync --all-extras && make check`, commit `uv.lock` with the patch, rebuild the
+1. After patches 0003 and 0004: `uv lock --upgrade && uv sync --all-extras && make check`, commit `uv.lock` with the patch, rebuild the
    Codespace container (Python 3.14 image), delete finished patch scripts (`docs/MODUS_OPERANDI.md`), watch the first CI run.
 2. `make run` (fake LLM is fine) and click through: first profile → invitation, `/cheer`, Settings → warm words, small talk phrases.
 3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
 4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
-5. `make eval` with a real key (SDK 2.x, item 8 above); read the tales; adjust persona or prompts.
+5. `make eval` with a real key: the first live run of the new request shapes (item 8) and the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
 6. Native-speaker read-through of Russian copy; extend the KBs (target: 100+ compliments).
 7. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
 8. Decide on a LICENSE and add it.
@@ -114,6 +123,26 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-10-25 — patch 0004-claude-5-5-llm-layer
+
+**Goal:** make the harness's LLM layer native to the current Claude 5.5 API (autonomous decision by the owner's brief: "the most modern harness").
+
+**Why:** the Claude Platform docs for Sonnet 5.5 and Haiku 5.5 (read 2026-10-25) say that a request without `thinking` runs adaptive thinking at `high` effort, that thinking blocks must come back unmodified in tool loops with an append-only history, that forced `tool_choice`, prefill, sampling parameters and `budget_tokens` are gone, and that thinking tokens count toward `max_tokens`. The adapter sent none of the new fields and filtered every block except text and tool_use, so against the live API it would have been slow, costly and likely rejected in the `load_skill` loop and in revisions. It had only ever run against a fake transport.
+
+**Changed**
+- `llm/anthropic_llm.py` rewritten: `thinking` (`between_tools` on Sonnet 5.5, adaptive elsewhere, `LLM_THINKING=auto`) and `output_config.effort` (`LLM_EFFORT=medium`, `GUARD_EFFORT=low`) on every request; adaptive gets `THINKING_HEADROOM` on `max_tokens`; all reply blocks kept in order, non-text/tool_use blocks verbatim; `strict: true` on tools flagged `ToolSpec.strict` (kill switch `LLM_STRICT_TOOLS`); `complete(schema=...)` sends `output_config.format` (structured outputs) and raises on refusal or `max_tokens` instead of returning text that may not match; `model_context_window_exceeded` is an error.
+- `ModelRefusal` (category from `stop_details`, never content) → `ModelRefused` (a `HarnessError`) → service outcome `refused` and the existing `GUARD_BLOCKED` message in the handler (no new user copy). The critic still fails open on any `LLMError`, now visibly (`critic_used=False`).
+- Skill tools got strict-compatible schemas (closed objects, no `minimum`/`maximum`; ranges moved into descriptions, the executor already clamps). `CRITIC_SCHEMA` and `CRITIC_CODES` live in `harness/prompts.py`; `parse_critic` accepts any capitalisation. Critic `max_tokens` 700 → 1200.
+- Settings: `llm_effort`, `llm_thinking`, `guard_effort`, `llm_strict_tools`; startup error for `between_tools` with `xhigh`/`max`.
+- Docs: AGENTS.md (LLM layer, recipe, pitfalls), README env table, `.env.example`, PLAN, CHANGELOG, HANDOFF (unverified item 8, D20-D22).
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green (325 tests, ruff, mypy `--strict`, skills and knowledge checks); 6 consecutive full-suite runs and a warnings-as-errors run green. New tests drive the real adapter through a mock HTTP transport with SSE: request shape for both thinking modes and headroom, thinking and redacted-thinking blocks passed through and replayed unmodified, strict flag and kill switch, refusal category (and that the explanation text is not kept), context overflow, structured `complete()` (format, effort, headroom, cut-off, refusal). Harness tests: thinking blocks survive the tool loop and a revision, history stays append-only, critic receives the schema, refusal mapping, refusing critic. A validator test keeps every strict schema inside the documented JSON Schema subset and under the 20-tool / 24-optional-parameter limits. A service test and a bot-flow test cover the `refused` outcome and message. The patch itself was applied to a fresh copy of the post-0003 export (dry run, apply, second run, rollback, anchor drift).
+
+**Unverified:** the live API has never accepted these request shapes (see section 3, item 8); the effort level and `between_tools` choice need the sweep in item 1; strict-tool and structured-output grammar compilation adds first-request latency. The critic schema and tool schemas were checked against the documented subset only locally.
+
+**Next:** `make eval` with a real key and read the tales; run effort low / medium / high; if the first live request returns a 400, send the exact error text.
+
 
 ### 2026-10-25 — patch 0003-python-314-toolchain
 

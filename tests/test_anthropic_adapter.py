@@ -9,8 +9,8 @@ import httpx2 as httpx
 import pytest
 from anthropic import AsyncAnthropic
 
-from skazki_bot.llm.anthropic_llm import AnthropicLLM
-from skazki_bot.llm.base import LLMError, ToolSpec
+from skazki_bot.llm.anthropic_llm import THINKING_HEADROOM, AnthropicLLM
+from skazki_bot.llm.base import LLMError, ModelRefusal, ToolSpec
 
 
 def sse(*events: tuple[str, dict[str, Any]]) -> bytes:
@@ -115,20 +115,21 @@ class Backend:
         self.requests.append(json.loads(request.content))
         return self.response
 
-    def llm(self) -> AnthropicLLM:
+    def llm(self, **overrides: Any) -> AnthropicLLM:
         client = AsyncAnthropic(
             api_key="test-key",
             base_url="http://anthropic.test",
             http_client=httpx.AsyncClient(transport=httpx.MockTransport(self.handler)),
             max_retries=0,
         )
-        return AnthropicLLM(
-            api_key="test-key",
-            model="claude-main",
-            guard_model="claude-guard",
-            timeout=5,
-            client=client,
-        )
+        settings: dict[str, Any] = {
+            "api_key": "test-key",
+            "model": "claude-main",
+            "guard_model": "claude-guard",
+            "timeout": 5,
+            "client": client,
+        } | overrides
+        return AnthropicLLM(**settings)
 
 
 def stream_response(*events: tuple[str, dict[str, Any]]) -> httpx.Response:
@@ -171,7 +172,10 @@ async def test_streams_text_and_maps_usage_and_request() -> None:
 
     sent = backend.requests[0]
     assert sent["model"] == "claude-main"
-    assert sent["max_tokens"] == 777
+    # an unknown model gets adaptive thinking, so max_tokens leaves room for it
+    assert sent["max_tokens"] == 777 + THINKING_HEADROOM
+    assert sent["thinking"] == {"type": "adaptive"}
+    assert sent["output_config"] == {"effort": "medium"}
     assert sent["stream"] is True
     assert sent["system"] == [
         {"type": "text", "text": "СИСТЕМА", "cache_control": {"type": "ephemeral"}}
@@ -302,3 +306,217 @@ async def test_complete_uses_guard_model_and_returns_text() -> None:
 
     await llm.complete(system="s", user="u", max_tokens=10, model="claude-other")
     assert backend.requests[1]["model"] == "claude-other"
+
+
+def thinking_block(index: int, signature: str, *thoughts: str) -> list[tuple[str, dict[str, Any]]]:
+    start = {"type": "thinking", "thinking": "", "signature": ""}
+    events: list[tuple[str, dict[str, Any]]] = [
+        (
+            "content_block_start",
+            {"type": "content_block_start", "index": index, "content_block": start},
+        )
+    ]
+    events += [
+        (
+            "content_block_delta",
+            {
+                "type": "content_block_delta",
+                "index": index,
+                "delta": {"type": "thinking_delta", "thinking": t},
+            },
+        )
+        for t in thoughts
+    ]
+    events.append(
+        (
+            "content_block_delta",
+            {
+                "type": "content_block_delta",
+                "index": index,
+                "delta": {"type": "signature_delta", "signature": signature},
+            },
+        )
+    )
+    events.append(("content_block_stop", {"type": "content_block_stop", "index": index}))
+    return events
+
+
+async def test_sonnet_55_runs_without_up_front_thinking() -> None:
+    backend = Backend(
+        stream_response(message_start(), *text_block(0, "Ок."), *message_end("end_turn"))
+    )
+    llm = backend.llm(model="claude-sonnet-5-5", effort="low")
+    await llm.turn(
+        system="s", messages=[{"role": "user", "content": "x"}], tools=[], max_tokens=300
+    )
+    sent = backend.requests[0]
+    assert sent["thinking"] == {"type": "between_tools"}  # the lowest setting; no up-front thinking
+    assert sent["output_config"] == {"effort": "low"}
+    assert sent["max_tokens"] == 300  # nothing is spent before the first word, no headroom needed
+
+
+async def test_thinking_blocks_come_back_unmodified_in_the_next_request() -> None:
+    backend = Backend(
+        stream_response(
+            message_start(),
+            *thinking_block(0, "SIG-abc"),
+            *text_block(1, "Загружаю."),
+            *tool_block(2, "toolu_7", "load_skill", '{"name": "original"}'),
+            *message_end("tool_use"),
+        )
+    )
+    llm = backend.llm()
+    first = await llm.turn(
+        system="s", messages=[{"role": "user", "content": "x"}], tools=[], max_tokens=100
+    )
+    assert [b["type"] for b in first.assistant_content] == ["thinking", "text", "tool_use"]
+    assert first.assistant_content[0] == {
+        "type": "thinking",
+        "thinking": "",
+        "signature": "SIG-abc",
+    }
+
+    history: list[dict[str, Any]] = [
+        {"role": "user", "content": "x"},
+        {"role": "assistant", "content": first.assistant_content},
+        {
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": "toolu_7", "content": "тело"}],
+        },
+    ]
+    await llm.turn(system="s", messages=history, tools=[], max_tokens=100)
+    sent_assistant = backend.requests[1]["messages"][1]["content"]
+    assert sent_assistant[0] == {"type": "thinking", "thinking": "", "signature": "SIG-abc"}
+
+
+async def test_redacted_thinking_blocks_are_kept_too() -> None:
+    redacted = {"type": "redacted_thinking", "data": "ENCRYPTED"}
+    events = [
+        (
+            "content_block_start",
+            {"type": "content_block_start", "index": 0, "content_block": redacted},
+        ),
+        ("content_block_stop", {"type": "content_block_stop", "index": 0}),
+    ]
+    backend = Backend(
+        stream_response(
+            message_start(), *events, *text_block(1, "Привет."), *message_end("end_turn")
+        )
+    )
+    result = await backend.llm().turn(
+        system="s", messages=[{"role": "user", "content": "x"}], tools=[], max_tokens=50
+    )
+    assert result.assistant_content == [redacted, {"type": "text", "text": "Привет."}]
+
+
+async def test_strict_tools_are_flagged_only_when_enabled_and_requested() -> None:
+    schema = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+        "additionalProperties": False,
+    }
+    strict = ToolSpec(name="a", description="d", input_schema=schema, strict=True)
+    loose = ToolSpec(name="b", description="d", input_schema=schema)
+    reply = stream_response(message_start(), *text_block(0, "."), *message_end("end_turn"))
+
+    backend = Backend(reply)
+    await backend.llm().turn(
+        system="s",
+        messages=[{"role": "user", "content": "x"}],
+        tools=[strict, loose],
+        max_tokens=50,
+    )
+    flags = [t.get("strict") for t in backend.requests[0]["tools"]]
+    assert flags == [True, None]
+
+    backend = Backend(reply)
+    await backend.llm(strict_tools=False).turn(
+        system="s", messages=[{"role": "user", "content": "x"}], tools=[strict], max_tokens=50
+    )
+    assert "strict" not in backend.requests[0]["tools"][0]  # kill switch
+
+
+async def test_refusal_carries_the_policy_category_and_nothing_else() -> None:
+    delta = (
+        "message_delta",
+        {
+            "type": "message_delta",
+            "delta": {
+                "stop_reason": "refusal",
+                "stop_sequence": None,
+                "stop_details": {
+                    "type": "refusal",
+                    "category": "general_harms",
+                    "explanation": "СЕКРЕТНЫЙ ТЕКСТ",
+                },
+            },
+            "usage": {"output_tokens": 3},
+        },
+    )
+    backend = Backend(
+        stream_response(
+            message_start(),
+            *text_block(0, "Не могу."),
+            delta,
+            ("message_stop", {"type": "message_stop"}),
+        )
+    )
+    with pytest.raises(ModelRefusal) as info:
+        await backend.llm().turn(
+            system="s", messages=[{"role": "user", "content": "x"}], tools=[], max_tokens=50
+        )
+    assert info.value.category == "general_harms"
+    assert "СЕКРЕТНЫЙ" not in str(info.value)  # the explanation text is never kept
+
+
+async def test_context_window_overflow_is_an_error() -> None:
+    backend = Backend(
+        stream_response(
+            message_start(), *text_block(0, "..."), *message_end("model_context_window_exceeded")
+        )
+    )
+    with pytest.raises(LLMError, match="Контекст"):
+        await backend.llm().turn(
+            system="s", messages=[{"role": "user", "content": "x"}], tools=[], max_tokens=50
+        )
+
+
+def message_body(text: str, stop_reason: str = "end_turn") -> dict[str, Any]:
+    return {
+        "id": "msg_9", "type": "message", "role": "assistant", "model": "claude-guard",
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": stop_reason, "stop_sequence": None,
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    }  # fmt: skip
+
+
+async def test_complete_with_schema_requests_structured_output() -> None:
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    backend = Backend(httpx.Response(200, json=message_body('{"ok": true}')))
+    text, _ = await backend.llm().complete(system="s", user="u", max_tokens=100, schema=schema)
+    assert text == '{"ok": true}'
+    sent = backend.requests[0]
+    assert sent["output_config"] == {
+        "effort": "low",
+        "format": {"type": "json_schema", "schema": schema},
+    }
+    assert sent["max_tokens"] == 100 + THINKING_HEADROOM
+
+
+async def test_complete_without_schema_sends_no_format() -> None:
+    backend = Backend(httpx.Response(200, json=message_body("текст")))
+    await backend.llm(guard_effort="medium").complete(system="s", user="u", max_tokens=10)
+    assert backend.requests[0]["output_config"] == {"effort": "medium"}
+
+
+async def test_structured_reply_cut_off_by_max_tokens_is_an_error_not_text() -> None:
+    backend = Backend(httpx.Response(200, json=message_body('{"ok": tr', "max_tokens")))
+    with pytest.raises(LLMError, match="max_tokens"):
+        await backend.llm().complete(system="s", user="u", max_tokens=10, schema={"type": "object"})
+
+
+async def test_complete_refusal_raises_model_refusal() -> None:
+    backend = Backend(httpx.Response(200, json=message_body("Не могу.", "refusal")))
+    with pytest.raises(ModelRefusal):
+        await backend.llm().complete(system="s", user="u", max_tokens=10)

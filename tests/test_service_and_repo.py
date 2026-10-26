@@ -6,8 +6,8 @@ import random
 import pytest
 
 from skazki_bot.db import repo
-from skazki_bot.harness import GuardBlocked, InputRejected, TaleHarness
-from skazki_bot.llm.base import LLMError
+from skazki_bot.harness import GuardBlocked, InputRejected, ModelRefused, TaleHarness
+from skazki_bot.llm.base import LLMError, ModelRefusal
 from skazki_bot.services.tale_service import (
     AlreadyGenerating,
     ChildNotFound,
@@ -91,6 +91,17 @@ async def test_llm_failure_does_not_consume_quota(app: App) -> None:
         await service.generate(user_id=3, child_id=child_id, request=ORIGINAL)
     assert await service.remaining_today(3) == app.settings.daily_tale_limit
     assert await _runs(app, 3) == ["error"]  # токены потрачены — след остаётся
+
+
+async def test_model_refusal_is_recorded_as_refused_and_does_not_consume_quota(app: App) -> None:
+    child_id = await _make_child(app, 901)
+    service = _service(app, ScriptedChat([ModelRefusal("general_harms")]))
+    with pytest.raises(ModelRefused):
+        await service.generate(user_id=901, child_id=child_id, request=ORIGINAL)
+    assert await service.remaining_today(901) == app.settings.daily_tale_limit
+    async with app.sf() as s:
+        assert await repo.count_tales(s, 901, child_id) == 0
+    assert await _runs(app, 901) == ["refused"]  # tokens were spent: the trace stays
 
 
 async def test_daily_limit(app: App) -> None:

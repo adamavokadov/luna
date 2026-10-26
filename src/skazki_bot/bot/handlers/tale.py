@@ -23,7 +23,7 @@ from skazki_bot.config import Settings
 from skazki_bot.db import repo
 from skazki_bot.db.base import SessionFactory
 from skazki_bot.db.models import Child, User
-from skazki_bot.harness import GuardBlocked, InputRejected, SkillRegistry
+from skazki_bot.harness import GuardBlocked, InputRejected, ModelRefused, SkillRegistry
 from skazki_bot.harness.guard import screen_free_text
 from skazki_bot.llm.base import LLMError
 from skazki_bot.llm.sanitize import clean_text
@@ -433,6 +433,10 @@ async def compose(
     except InputRejected as exc:
         message = texts.CRISIS_SUPPORT if exc.category == "crisis" else texts.IDEA_REJECTED
         await bot.send_message(chat_id, message, reply_markup=kb.back_home_kb())
+        return
+    except ModelRefused as exc:
+        log.warning("tale_refused_by_model", user_id=user_id, category=exc.category)
+        await bot.send_message(chat_id, texts.GUARD_BLOCKED, reply_markup=kb.retry_kb())
         return
     except GuardBlocked:
         log.warning("tale_blocked_by_guard", user_id=user_id)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from skazki_bot.bot import texts
 from skazki_bot.bot.callbacks import (
     AgeCb,
@@ -15,6 +17,8 @@ from skazki_bot.bot.callbacks import (
     TaleCb,
 )
 from skazki_bot.domain.enums import Gender
+from skazki_bot.llm.base import ModelRefusal
+from skazki_bot.llm.fake import FakeLLM
 from tests.conftest import ADMIN_ID, App, Client
 
 
@@ -331,3 +335,19 @@ async def test_stale_button_gets_an_alert(client: Client) -> None:
 async def test_unknown_text_gets_hint(client: Client) -> None:
     await client.send("абракадабра")
     assert texts.UNKNOWN in client.calls.sent_texts()
+
+
+async def test_model_refusal_gets_the_gentle_message_and_leaves_a_trace(
+    client: Client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def refuse(self: FakeLLM, **kwargs: object) -> object:
+        raise ModelRefusal("general_harms")
+
+    monkeypatch.setattr(FakeLLM, "turn", refuse)
+    await onboard(client)
+    await client.press(MenuCb(action="new"))
+    await client.press(TaleCb(action="auto"))
+
+    assert texts.GUARD_BLOCKED in client.calls.sent_texts()
+    assert await client.tales() == []
+    assert [r.outcome for r in await client.runs()] == ["refused"]

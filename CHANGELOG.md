@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- **Claude 5.x-native LLM layer**: explicit `thinking` and `output_config.effort` on every request (`LLM_THINKING=auto`, `LLM_EFFORT=medium`,
+  `GUARD_EFFORT=low`; Sonnet 5.5 runs `between_tools`, other models adaptive); strict tool use for the four skill tools
+  (`LLM_STRICT_TOOLS`); the critic answers under a JSON schema (`CRITIC_SCHEMA`, structured outputs); `ModelRefusal` /
+  `ModelRefused` carry the refusal's policy category; run outcome `refused`. 29 new tests (325 total).
 - **Luna's persona**: `persona/soul.md` (character, voice, boundaries, examples) with a validated
   runtime block that becomes the head of the system prompt; `load_persona()`.
 - **Knowledge bases** under `knowledge/`: a folk toolkit for tales (12 openings, 10 closings,
@@ -29,9 +33,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   engine and builder, with its own tests).
 - **Docs**: `docs/KNOWLEDGE.md`, `docs/CHEER.md`, `docs/MODUS_OPERANDI.md`,
   `docs/PROJECT_INSTRUCTIONS.md`; README rewritten.
-- 108 new tests (294 total); 296 after the toolchain upgrade and its fixes.
+- 108 new tests (294 total); 296 after the toolchain upgrade and its fixes; 325 after the LLM-layer upgrade.
 
 ### Fixed
+- Per the Claude Platform docs for Sonnet 5.5, the adapter would have run every tale at default adaptive thinking and `high` effort (slow and costly),
+  dropped thinking blocks that the API wants back in tool loops and revisions, and let the critic's 700-token budget be spent on
+  thinking. None of this had been seen yet because the adapter had only run against a fake transport.
 - **Flaky test** `test_auto_mode_lets_model_load_a_skill` (about 15% of runs, since the folk toolkit arrived): the fake model routed on
   the whole prompt, and the toolkit helper «дракончик, который боится щекотки» matched its fear rule, so "Surprise me" went to
   `metaphorical`. The fake model now ignores the `<folk_toolkit>` block when routing; a regression test checks every toolkit entry.
@@ -45,6 +52,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 - `.python-version` pins the interpreter so uv does not pick whatever Python the machine has (3.12 at first; 3.14 since the toolchain upgrade).
 
 ### Changed
+- `TurnResult.assistant_content` keeps every reply block (thinking and redacted thinking verbatim, in order) and the runner replays it
+  append-only; the critic gets `max_tokens=1200` plus thinking headroom, and a critic that is refused or cut off is logged and leaves
+  `critic_used=False` instead of being silently ignored. `parse_critic` accepts any capitalisation of `code` and `severity`.
 - **Python 3.14** everywhere: `.python-version`, `requires-python`, ruff/mypy targets, Dockerfile (`uv:python3.14-trixie-slim` →
   `python:3.14-slim-trixie`, Debian 13), devcontainer (`python:3-3.14-trixie`), README badge. 3.15 is out but aiogram 3.31 caps
   `python<3.15`.

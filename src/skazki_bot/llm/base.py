@@ -11,6 +11,15 @@ class LLMError(Exception):
     """Любая ошибка генерации: сеть, лимиты провайдера, отказ модели, пустой ответ."""
 
 
+class ModelRefusal(LLMError):
+    """The model declined (`stop_reason: refusal`). Carries only the policy category, never content."""
+
+    def __init__(self, category: str | None = None) -> None:
+        suffix = f" ({category})" if category else ""
+        super().__init__(f"Модель отказалась отвечать на запрос{suffix}")
+        self.category = category
+
+
 @dataclass(frozen=True)
 class Usage:
     input_tokens: int = 0
@@ -32,6 +41,9 @@ class ToolSpec:
     name: str
     description: str
     input_schema: dict[str, Any]
+    strict: bool = (
+        False  # ask for schema-guaranteed inputs; the schema must stay in the strict subset
+    )
 
 
 @dataclass(frozen=True)
@@ -45,7 +57,9 @@ class ToolCall:
 class TurnResult:
     text: str
     tool_calls: tuple[ToolCall, ...]
-    assistant_content: list[dict[str, Any]]  # блоки ответа — чтобы вернуть их в историю диалога
+    # ALL blocks of the reply, thinking blocks included and unmodified: they must go back with the tool
+    # results (and stay append-only), otherwise the API rejects or degrades the next request
+    assistant_content: list[dict[str, Any]]
     stop_reason: str
     usage: Usage
 
@@ -68,7 +82,17 @@ class ChatLLM(Protocol):
         ...
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int, model: str | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int,
+        model: str | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> tuple[str, Usage]:
-        """Короткий вызов без стриминга и инструментов (критик, классификаторы)."""
+        """Короткий вызов без стриминга и инструментов (критик, классификаторы).
+
+        With `schema` the reply is constrained to that JSON schema (structured outputs). A refusal or a
+        reply cut off by `max_tokens` raises instead of returning text that may not match the schema.
+        """
         ...

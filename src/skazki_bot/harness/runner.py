@@ -13,6 +13,7 @@ from skazki_bot.domain.age import target_words
 from skazki_bot.domain.interests import labels_for, themes_for
 from skazki_bot.harness.guard import Issue, check_tale, parse_critic, screen_free_text
 from skazki_bot.harness.prompts import (
+    CRITIC_SCHEMA,
     CRITIC_SYSTEM,
     LAST_STEP_NOTE,
     build_critic_user,
@@ -26,6 +27,7 @@ from skazki_bot.harness.types import (
     GuardBlocked,
     HarnessError,
     InputRejected,
+    ModelRefused,
     RunInput,
     RunResult,
     RunTrace,
@@ -36,7 +38,7 @@ from skazki_bot.knowledge.tale_kb import (
     pick_toolkit,
     toolkit_prompt,
 )
-from skazki_bot.llm.base import ChatLLM, LLMError, Message, TurnResult
+from skazki_bot.llm.base import ChatLLM, LLMError, Message, ModelRefusal, TurnResult
 from skazki_bot.llm.parse import ParsedTale, parse_tale
 from skazki_bot.logging import get_logger
 from skazki_bot.stories.library import Classic, get_classic, load_classics
@@ -81,6 +83,8 @@ class TaleHarness:
         except HarnessError as exc:
             exc.trace = trace
             raise
+        except ModelRefusal as exc:
+            raise ModelRefused(str(exc), trace, exc.category) from exc
         except LLMError as exc:
             raise HarnessError(str(exc), trace) from exc
         finally:
@@ -310,11 +314,14 @@ class TaleHarness:
                     body=parsed.body,
                     note=parsed.parent_note,
                 ),
-                max_tokens=700,
+                max_tokens=1200,
                 model=self._cfg.guard_model,
+                schema=CRITIC_SCHEMA,
             )
         except LLMError:
-            log.warning("critic_failed", exc_info=True)  # сбой критика не блокирует сказку
+            # a failed critic (API error, refusal, reply cut off) does not block the tale: the deterministic
+            # checks already ran. It is visible: critic_used stays False in the run trace.
+            log.warning("critic_failed", exc_info=True)
             return []
         trace.guard_usage = trace.guard_usage + usage
         trace.critic_used = True

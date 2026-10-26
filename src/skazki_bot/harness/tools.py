@@ -28,7 +28,9 @@ TOOL_SPECS: dict[str, ToolSpec] = {
             "type": "object",
             "properties": {"name": {"type": "string", "description": "Имя навыка из каталога"}},
             "required": ["name"],
+            "additionalProperties": False,
         },
+        strict=True,
     ),
     "read_skill_file": ToolSpec(
         name="read_skill_file",
@@ -40,7 +42,9 @@ TOOL_SPECS: dict[str, ToolSpec] = {
                 "path": {"type": "string", "description": "Путь вида references/файл.md"},
             },
             "required": ["name", "path"],
+            "additionalProperties": False,
         },
+        strict=True,
     ),
     "pick_classic": ToolSpec(
         name="pick_classic",
@@ -51,18 +55,15 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         input_schema={
             "type": "object",
             "properties": {
-                "count": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 3,
-                    "description": "Сколько сюжетов",
-                },
+                "count": {"type": "integer", "description": "Сколько сюжетов: от 1 до 3"},
                 "theme": {
                     "type": "string",
                     "description": "Желаемая тема: animals, forest, magic, sea, winter…",
                 },
             },
+            "additionalProperties": False,
         },
+        strict=True,
     ),
     "get_recent_tales": ToolSpec(
         name="get_recent_tales",
@@ -72,8 +73,12 @@ TOOL_SPECS: dict[str, ToolSpec] = {
         ),
         input_schema={
             "type": "object",
-            "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 5}},
+            "properties": {
+                "limit": {"type": "integer", "description": "Сколько сказок: от 1 до 5"}
+            },
+            "additionalProperties": False,
         },
+        strict=True,
     ),
 }
 assert tuple(TOOL_SPECS) == TOOL_NAMES  # список имён в skills.py и описания не должны расходиться

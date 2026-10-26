@@ -171,8 +171,8 @@ def parse_critic(raw: str) -> list[Issue]:
     for item in data.get("issues") or []:
         if not isinstance(item, dict):
             continue
-        severity: Severity = "block" if item.get("severity") == "block" else "fix"
-        code = str(item.get("code", "critic"))[:30]
+        severity: Severity = "block" if str(item.get("severity", "")).lower() == "block" else "fix"
+        code = str(item.get("code", "critic")).lower()[:30]
         message = str(item.get("message", "")).strip()[:300]
         if message:
             issues.append(Issue(f"critic_{code}", severity, message))

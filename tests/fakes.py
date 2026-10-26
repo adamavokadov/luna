@@ -97,9 +97,17 @@ class ScriptedChat:
         return item
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int, model: str | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int,
+        model: str | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> tuple[str, Usage]:
-        self.complete_calls.append({"system": system, "user": user, "model": model})
+        self.complete_calls.append(
+            {"system": system, "user": user, "model": model, "schema": schema}
+        )
         raw = self._critic.pop(0) if self._critic else '{"ok": true, "issues": []}'
         if isinstance(raw, Exception):
             raise raw

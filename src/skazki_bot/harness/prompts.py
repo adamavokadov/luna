@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from skazki_bot.domain.age import profile_for_age
 from skazki_bot.domain.enums import Gender
@@ -186,6 +187,33 @@ CRITIC_SYSTEM = """\
 severity "block" — только для серьёзных нарушений безопасности. Не придирайся к мелочам: \
 если сказка хороша, верни {"ok": true, "issues": []}.
 """
+
+
+CRITIC_CODES = ("safety", "age_fit", "gender", "ending", "moralizing", "language")
+# The critic's reply format as a JSON schema (structured outputs). Keep it inside the strict subset:
+# every object closed, no numeric or string constraints, nothing optional. No field asks for reasoning
+# (that can trigger a `reasoning_extraction` refusal): `message` is a short instruction to the editor.
+CRITIC_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "ok": {"type": "boolean"},
+        "issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "enum": list(CRITIC_CODES)},
+                    "severity": {"type": "string", "enum": ["fix", "block"]},
+                    "message": {"type": "string"},
+                },
+                "required": ["code", "severity", "message"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["ok", "issues"],
+    "additionalProperties": False,
+}
 
 
 def build_critic_user(

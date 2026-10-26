@@ -104,6 +104,12 @@ tools/              unpack_repomix.py; patchkit/ (patch-script engine + builder,
 - **Skills (tale formats):** `SkillRegistry` loads `skills/*/SKILL.md` with strict validation;
   the catalog is in the system prompt, bodies on demand. `cheer` is a *companion* skill with its
   own validator; it is never in the tale catalog.
+- **LLM layer (Claude 5.x), `llm/anthropic_llm.py`:** every request states its thinking and effort explicitly
+  (`LLM_THINKING=auto` → `between_tools` on Sonnet 5.5, adaptive elsewhere; `LLM_EFFORT=medium`; critic on
+  `GUARD_EFFORT=low`). `TurnResult.assistant_content` keeps *every* reply block, thinking blocks verbatim, and the
+  runner replays it append-only. Skill tools use strict tool use; the critic answers under a JSON schema
+  (`CRITIC_SCHEMA`, structured outputs). A refusal becomes `ModelRefusal` (policy category only, never content) →
+  `ModelRefused` → run outcome `refused` and the same gentle message as a guard block.
 - **System prompt** = `persona/soul.md` runtime block + craft rules (`harness/prompts.py`).
   Budget: keep it under ~14k characters (a test enforces it; it is ~7k today).
 - **Folk toolkit:** `harness/runner.py` adds an optional `<folk_toolkit>` block (opening,
@@ -187,6 +193,7 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
 | Add a classic plot | Append to `knowledge/tales/classics.yaml`, keep `id` short, `make test` |
 | Add a user setting | Column in `db/models.py` + migration + repo function + handler + keyboard/text + flow test |
 | Add a UI text | `bot/texts.py` in Luna's voice; the persona test checks it automatically |
+| Change model, thinking or effort | `LLM_MODEL` / `LLM_THINKING` / `LLM_EFFORT` (see `config.py`); levels are recalibrated per model, so run `make eval` with a real key and compare length, quality and `/stats` cost before keeping a change |
 | Change prompts | `harness/prompts.py` / `persona/soul.md`; keep `len(system) < 14000`; run `make eval` with a real key and read the output |
 | Upgrade Python or dependencies | Edit pins in `pyproject.toml` (floor = the version `make check` ran against), `uv lock --upgrade`, `uv sync --all-extras`, `make check`; commit `uv.lock`. Read the aiogram caps in section 12 first |
 | Add a scheduled behaviour | Put pure rules in a module, DB access in `service.py`, delivery in a scheduler; opt-in, daytime, stoppable, atomic claim |
@@ -209,6 +216,19 @@ repomix export → plan → implement and verify in a sandbox → one idempotent
 
 ## 12. Pitfalls we already hit or avoided
 
+- **Claude 5.5 thinks unless told otherwise** (adaptive, effort `high`). Always send `thinking` and `output_config.effort`.
+  `between_tools` is the lowest setting and exists on Sonnet 5.5 only (it rejects `disabled`, and `xhigh`/`max` with
+  `between_tools`); Haiku 5.5 knows adaptive only. `max_tokens` covers thinking, so adaptive thinking gets headroom in the adapter.
+- **Never filter reply blocks.** Thinking blocks (empty text, a signature) must go back unmodified with tool results, and the
+  history must stay append-only (`system`, `tools` and earlier messages unchanged), or the API returns 400.
+- Removed on Claude 5.x: `temperature`/`top_p`/`top_k`, assistant prefill, `budget_tokens`; Sonnet 5.5 also rejects forced
+  `tool_choice`. Use `auto` plus strict tools or structured outputs.
+- **Strict tools and structured outputs accept a JSON Schema subset:** every object closed (`additionalProperties: false`), no
+  `minimum`/`maximum`/length constraints, at most 20 strict tools and 24 optional parameters per request. `tests/test_llm_config.py`
+  checks this; `LLM_STRICT_TOOLS=false` is the kill switch. A structured reply is valid only if `stop_reason` is not `refusal` or
+  `max_tokens` (the adapter raises), enum values may differ in capitalisation, and a field that asks for reasoning can trigger a
+  `reasoning_extraction` refusal.
+- Claude 5.x counts about 30% more tokens than 4.x for the same text; re-check `LLM_MAX_TOKENS` and cost after a model change.
 - `.gitignore` must anchor runtime data as `/data/`; a bare `data/` hides package data dirs.
 - `uv.lock` is committed (Dockerfile uses `--frozen`); do not ignore it.
 - SQLAlchemy `rowcount` needs `# type: ignore[attr-defined]` under mypy strict (existing pattern).
