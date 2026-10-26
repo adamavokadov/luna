@@ -15,6 +15,8 @@ _ROUTE_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"стих|рифм", re.IGNORECASE), "rhyme"),
     (re.compile(r"день рождения|праздник", re.IGNORECASE), "celebration"),
 )
+# The folk toolkit is random decoration appended to the request; routing must not depend on it.
+_TOOLKIT_BLOCK = re.compile(r"<folk_toolkit>.*?</folk_toolkit>", re.DOTALL)
 _FILLER = (
     "Вокруг было тихо и тепло, а над головой мягко светили звёзды.",
     "По дороге {name} встретил{a} доброго друга, и они пошли дальше вместе.",
@@ -59,7 +61,8 @@ class FakeLLM:
         )
 
         if "load_skill" in {t.name for t in tools} and not used_tools:
-            skill = next((s for rule, s in _ROUTE_RULES if rule.search(first_user)), "original")
+            request = _TOOLKIT_BLOCK.sub("", first_user)
+            skill = next((s for rule, s in _ROUTE_RULES if rule.search(request)), "original")
             call = ToolCall(id="fake_tool_1", name="load_skill", input={"name": skill})
             return TurnResult(
                 text="",

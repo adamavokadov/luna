@@ -125,6 +125,7 @@ def test_apply_produces_exactly_the_worked_tree(built: dict[str, Path], target: 
     assert not (target / "old").exists()  # the move leaves no empty directory behind
     assert (target / ".patch-backups" / "0099-test").is_dir()
     assert "git commit" in result.stdout
+    assert "patch scripts" not in result.stdout  # nothing left over, nothing to say
 
 
 def test_second_run_is_a_no_op(built: dict[str, Path], target: Path) -> None:
@@ -219,3 +220,34 @@ def test_next_steps_mention_installing_uv_when_it_is_missing(
     )  # fmt: skip
     assert result.returncode == 0
     assert "pip install uv" in result.stdout
+
+
+def test_next_steps_list_only_finished_patch_scripts_and_never_delete_them(
+    built: dict[str, Path], target: Path
+) -> None:
+    scripts = {
+        "patch_0001_old_one.py": "manifest.json",  # applied: listed
+        "patch_0002_old_two.py": "manifest.json",  # applied: listed
+        "patch_0003_pending.py": None,  # never applied (a later patch of a chain): must survive the hint
+        "patch_0004_undone.py": "manifest.rolled-back.json",  # applied, then rolled back: not finished
+    }
+    for name, manifest in scripts.items():
+        write_tree(target, {name: "# stand-in\n"})
+        if manifest:
+            run = (
+                target
+                / ".patch-backups"
+                / name.removeprefix("patch_").removesuffix(".py").replace("_", "-")
+            )
+            write_tree(run / "20260101-000000", {manifest: "{}\n"})
+    me = target / built["script"].name
+    shutil.copy(built["script"], me)  # the running script must not list itself
+    result = subprocess.run(
+        [sys.executable, str(me), "--root", str(target)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    (hint,) = [
+        line for line in result.stdout.splitlines() if "delete finished patch scripts" in line
+    ]
+    assert hint.endswith("rm patch_0001_old_one.py patch_0002_old_two.py"), hint
+    assert all((target / name).is_file() for name in scripts)  # listed or not, nothing is deleted

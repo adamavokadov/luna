@@ -18,14 +18,17 @@ services:
     # ports: ["8080:8080"]
 
   db:
-    image: postgres:17-alpine
+    # PostgreSQL 18+ images keep data in /var/lib/postgresql/<major>/docker, so the volume is mounted one level up.
+    # The volume is named pgdata18 on purpose: an old pgdata (PG 17) volume stays untouched; move data with
+    # pg_dump / pg_restore (a major version cannot reuse another major's data directory).
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: skazki
       POSTGRES_PASSWORD: skazki
       POSTGRES_DB: skazki
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U skazki -d skazki"]
       interval: 5s
@@ -33,11 +36,11 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     volumes:
       - redisdata:/data
 
 volumes:
-  pgdata:
+  pgdata18:
   redisdata:

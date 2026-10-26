@@ -12,7 +12,7 @@ Humans: the same file is the fastest way to understand the project's rules.
   specific child (name, gender, age 2-10, interests) and, if the parent opts in, sends the parent
   warm words (compliments, encouragement, proverbs).
 - **Repo / package:** `skazki-bot` / `skazki_bot` (do not rename; the persona is Luna).
-- **Stack:** Python 3.12, uv, aiogram 3, SQLAlchemy 2 async + Alembic (SQLite dev / PostgreSQL
+- **Stack:** Python 3.14, uv, aiogram 3, SQLAlchemy 2 async + Alembic (SQLite dev / PostgreSQL
   prod), pydantic-settings, structlog, Anthropic Messages API behind a `ChatLLM` interface,
   optional Redis for FSM state. Quality: ruff, mypy `--strict`, pytest.
 - **Core idea:** an agentic *harness* (`harness/`) runs a model↔tools loop over *skills*
@@ -60,7 +60,9 @@ make revision m="..."   # new Alembic migration after model changes
 make unpack src=repomix-output.xml dst=/tmp/repo   # rebuild a repo from a repomix export
 ```
 
-`uv` must be on PATH (`pip install uv` if it is missing); `.python-version` pins Python 3.12 and uv fetches it on demand.
+`uv` must be on PATH (`pip install uv` if it is missing); `.python-version` pins Python 3.14 and uv fetches it on demand.
+After editing dependencies in `pyproject.toml`, run `uv lock` (or `uv lock --upgrade` to refresh everything) and commit `uv.lock`;
+CI runs `uv sync --locked` and fails when the lock is stale.
 
 `LLM_PROVIDER=fake` runs everything offline with canned stories (skill routing and tools still work).
 
@@ -117,7 +119,7 @@ tools/              unpack_repomix.py; patchkit/ (patch-script engine + builder,
 
 ## 6. Code conventions
 
-- Python 3.12, `from __future__ import annotations`, full type hints, mypy `--strict` clean.
+- Python 3.14, `from __future__ import annotations` (kept on purpose, harmless on 3.14), full type hints, mypy `--strict` clean.
   Line length 100 (ruff format decides). Async everywhere that touches I/O.
 - Pydantic models for external/data-file schemas (`extra="forbid"`); frozen dataclasses for
   internal value objects.
@@ -169,6 +171,9 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
   `chat.calls`.
 - Database-level tests build a throwaway SQLite engine (`tests/test_cheer.py::env` is a template).
 - Time-dependent logic takes `now` explicitly; do not sleep in tests.
+- Randomness must not decide a test's outcome. `FakeLLM` routes skills with regexes over the request only (the random
+  `<folk_toolkit>` block is stripped first); a toolkit entry that merely mentions a trigger word once failed ~15% of runs.
+  When a test fails once and passes on re-run, find the unseeded RNG or time source instead of re-running.
 - When you add a handler or a setting, add a flow test. When you add KB content, the existing
   rule tests already cover it; add rules there when you add a new rule to the docs.
 - Run a single file: `uv run pytest tests/test_cheer.py -q`.
@@ -183,6 +188,7 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
 | Add a user setting | Column in `db/models.py` + migration + repo function + handler + keyboard/text + flow test |
 | Add a UI text | `bot/texts.py` in Luna's voice; the persona test checks it automatically |
 | Change prompts | `harness/prompts.py` / `persona/soul.md`; keep `len(system) < 14000`; run `make eval` with a real key and read the output |
+| Upgrade Python or dependencies | Edit pins in `pyproject.toml` (floor = the version `make check` ran against), `uv lock --upgrade`, `uv sync --all-extras`, `make check`; commit `uv.lock`. Read the aiogram caps in section 12 first |
 | Add a scheduled behaviour | Put pure rules in a module, DB access in `service.py`, delivery in a scheduler; opt-in, daytime, stoppable, atomic claim |
 
 ## 11. Workflow, HANDOFF and definition of done
@@ -213,6 +219,17 @@ repomix export → plan → implement and verify in a sandbox → one idempotent
 - Russian grammar is gendered: never write a predicate about the reader or the child without
   checking it against the rules above.
 - `repomix` skips what `.gitignore` ignores; patch scripts and exports are ignored by design.
+- `uv.lock` is not part of repomix exports or patch scripts (the builder skips it). A patch that changes dependencies cannot ship the lock:
+  the owner runs `uv lock --upgrade` and commits it; CI (`--locked`) catches a forgotten lock.
+- aiogram declares upper bounds that cap everything else: `python<3.15`, `pydantic<2.14`, `aiohttp<3.15`, and `redis<8` for its
+  RedisStorage. Check its metadata before raising Python or those libraries; the Python target stays 3.14 until aiogram allows 3.15.
+- GitHub Actions in `ci.yml` are pinned by commit SHA with a version comment: `astral-sh/setup-uv` publishes immutable tags only
+  (no floating `@v10`). Verify a SHA with `git ls-remote --tags <repo>` before changing it.
+- Patch scripts never delete anything, themselves included. Delete finished ones after committing: an old patch with an
+  overwrite-mode step (e.g. a rewritten README) would silently revert later edits if run again.
+- PostgreSQL 18+ Docker images keep data in `/var/lib/postgresql/<major>/docker` (volume mounted at `/var/lib/postgresql`).
+  `docker-compose.yml` uses 18 with a volume named `pgdata18`; for the next major use a new volume name plus `pg_dump`/`pg_restore`
+  (or `pg_upgrade`), never a bare tag bump over an existing volume.
 
 ## 13. Not verified yet (see `HANDOFF.md` for the live list)
 

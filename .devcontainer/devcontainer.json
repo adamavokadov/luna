@@ -1,6 +1,6 @@
 {
   "name": "Luna (skazki-bot)",
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie",
   "postCreateCommand": "pip install --user uv && uv sync --all-extras && ([ -f .env ] || cp .env.example .env)",
   "remoteEnv": { "UV_LINK_MODE": "copy" },
   "customizations": {

@@ -2,7 +2,7 @@
 
 # Luna: project instructions
 
-You are the engineering partner of Adam on **Luna**, a Telegram bot (repo and package `skazki-bot` / `skazki_bot`) that writes personal Russian fairy tales for a specific child and, if the parent opts in, sends the parent warm words. Stack: Python 3.12, uv, aiogram 3, SQLAlchemy 2 async + Alembic, pydantic-settings, Anthropic API behind a `ChatLLM` interface, ruff, mypy `--strict`, pytest. Adam develops in **GitHub Codespaces** and sends you the repository as a **repomix export**.
+You are the engineering partner of Adam on **Luna**, a Telegram bot (repo and package `skazki-bot` / `skazki_bot`) that writes personal Russian fairy tales for a specific child and, if the parent opts in, sends the parent warm words. Stack: Python 3.14, uv, aiogram 3, SQLAlchemy 2 async + Alembic, pydantic-settings, Anthropic API behind a `ChatLLM` interface, ruff, mypy `--strict`, pytest. Adam develops in **GitHub Codespaces** and sends you the repository as a **repomix export**.
 
 ## 1. Language policy (explicit rule from Adam)
 

@@ -13,10 +13,14 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 
 ## 1. Snapshot (update each session)
 
-- **State as of 2026-10-24:** Luna persona, two knowledge bases and the warm-words skill are
-  implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`).
-- **Quality gate:** `make check` green in the authoring sandbox (294 tests, ruff, mypy `--strict`,
-  skills check, knowledge check).
+- **State as of 2026-10-25:** Luna persona, two knowledge bases and the warm-words skill are
+  implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
+  toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`).
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (296 tests, ruff, mypy
+  `--strict`, skills check, knowledge check).
+- **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
+  anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
+  `uv.lock` is not in exports: the owner refreshes it (`uv lock --upgrade`).
 - **DB head:** migration `0003` (warm-words columns on `users`).
 - **Content:** 14 tale skills; 25 classic plots; 58 folk-toolkit entries; 50 compliments,
   36 encouragements, 36 proverbs.
@@ -43,15 +47,21 @@ verified. It is the memory between sessions (human or AI). Read it right after `
    `persona/soul.md` runtime block. Automated rules catch typical grammar traps, not taste.
 4. **PostgreSQL:** migration `0003` is tested on SQLite only; run `alembic upgrade head` and
    `downgrade -1` on a real Postgres.
-5. **Infra files created only if missing:** `.github/workflows/ci.yml`,
-   `.devcontainer/devcontainer.json`, `.env.example`, `.dockerignore` were not in the repomix
-   export (dotfiles may have been excluded). First CI run and first Codespace rebuild will tell
-   whether they match what already exists. Pinned action versions (`checkout@v4`, `setup-uv@v6`)
-   may need bumping.
+5. **First CI run and first Codespace rebuild on the new toolchain:** `ci.yml` now pins `actions/checkout` v7.0.1 and
+   `astral-sh/setup-uv` v10.3.2 by SHA and syncs with `--locked`; the devcontainer uses
+   `mcr.microsoft.com/devcontainers/python:3-3.14-trixie`. The SHAs were verified as real commits with `git fetch`;
+   the image tag was confirmed from public sources only. None of it has run on GitHub yet. (The infra dotfiles are
+   now in the export, so the old "created only if missing" worry is closed.)
 6. **Crisis text for adults:** free-text crisis wording now routes to `texts.CRISIS_SUPPORT`,
    whose contacts are written for child safety (112 and the children's helpline). Owner to decide
    whether adults in distress need a different message.
-7. **Docker build** and webhook mode with the scheduler running in several replicas.
+7. **Docker build and compose stack** (new bases `uv:python3.14-trixie-slim` and `python:3.14-slim-trixie`, `postgres:18-alpine`,
+   `redis:8-alpine`; Docker is not available in the authoring sandbox, only the builder's `uv sync --frozen --no-dev --extra redis
+   --no-editable` was replayed on 3.14) and webhook mode with the scheduler running in several replicas.
+8. **Real Anthropic API with SDK 2.x:** the adapter passes its tests against a fake HTTP transport on `anthropic` 2.3.0
+   (the floor used to be 1.15); streaming and tool use against the live API are untested. Same for `RedisStorage` with
+   redis-py 7.4.1: constructed in a smoke test, never connected to a server.
+9. **Python patch level:** the sandbox ran 3.14.4; the Docker and Codespace images carry newer 3.14.x.
 
 ## 4. Decisions
 
@@ -71,23 +81,30 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D12 | Small talk is regex-based and deterministic; crisis wording wins | Cheap, predictable, safe |
 | D13 | One timezone (`TIMEZONE`) for everyone | Simplicity; per-user timezone is a roadmap item |
 | D14 | Version not bumped | `uv.lock` records it; bump together with a tag |
-| D15 | `.python-version` pins 3.12 | A Codespace ships Python 3.14; the project, Docker image and CI target 3.12 |
+| D15 | `.python-version` pins the interpreter (3.12 at the time) | A Codespace ships its own Python; uv must not pick it by accident. *Version superseded by D16* |
+| D16 | Python 3.14 (not 3.15) | 3.15.0 is out (2026-10), but aiogram 3.31 declares `python<3.15`; 3.14 also matches the Codespace default |
+| D17 | Floors in `pyproject.toml` = versions `make check` ran against; `anthropic>=2.3,<3`, `redis>=7.4,<8` | Reproducible without a lock; `redis<8` follows aiogram's `RedisStorage` declaration |
+| D18 | CI actions pinned by commit SHA (+ version comment); `uv sync --locked` in CI | `setup-uv` v8+ has no floating tags; a stale lock must fail loudly |
+| D19 | `postgres:18-alpine` (volume `pgdata18` at `/var/lib/postgresql`) and `redis:8-alpine` in compose | PG 19 is RC only (GA planned 2026-11-19), 18 is the newest release; a new volume name leaves any old PG 17 volume untouched; Redis only holds FSM state |
 
 ## 5. Next steps (prioritized)
 
-1. Apply the patch (if `uv` is missing in the Codespace: `pip install uv`), `make check`, then `make run` (fake LLM is fine) and click through: first
-   profile → invitation, `/cheer`, Settings → warm words, small talk phrases.
-2. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
-3. `make eval` with a real key; read the tales; adjust persona or prompts.
-4. Native-speaker read-through of Russian copy; extend the KBs (target: 100+ compliments).
-5. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
-6. Decide on a LICENSE and add it.
-7. Optional LLM "personalizing" mode for warm words, bounded by the same guard checks.
-8. Roadmap items in `docs/PLAN.md` section 7.
+1. After patch 0003: `uv lock --upgrade && uv sync --all-extras && make check`, commit `uv.lock` with the patch, rebuild the
+   Codespace container (Python 3.14 image), delete finished patch scripts (`docs/MODUS_OPERANDI.md`), watch the first CI run.
+2. `make run` (fake LLM is fine) and click through: first profile → invitation, `/cheer`, Settings → warm words, small talk phrases.
+3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
+4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
+5. `make eval` with a real key (SDK 2.x, item 8 above); read the tales; adjust persona or prompts.
+6. Native-speaker read-through of Russian copy; extend the KBs (target: 100+ compliments).
+7. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
+8. Decide on a LICENSE and add it.
+9. Optional LLM "personalizing" mode for warm words, bounded by the same guard checks.
+10. Roadmap items in `docs/PLAN.md` section 7.
 
 ## 6. Manual steps for the owner
 
-- Run the patch from the repo root in Codespaces (`docs/MODUS_OPERANDI.md`), then `make check`.
+- Run the patch from the repo root in Codespaces (`docs/MODUS_OPERANDI.md`), then `make check`. If it changed dependencies,
+  run `uv lock --upgrade` first and commit `uv.lock` too (exports and patches never carry it).
 - Commit (suggested message is printed by the script); do **not** commit the patch script.
 - Codespaces secrets: `BOT_TOKEN`, `ANTHROPIC_API_KEY`.
 - BotFather: `/setname` Луна, `/setuserpic`.
@@ -97,6 +114,28 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-10-25 — patch 0003-python-314-toolchain
+
+**Goal:** check how patches 0001 and 0002 landed, then upgrade the toolchain (Python and everything around it).
+
+**Audit of 0001/0002 (from the repomix export):** every file and behaviour the two entries describe is present (docs, persona, knowledge, cheer skill, migration `0003`, infra dotfiles, `.python-version`, the engine's `uv`/`make` hint and its tests); the classics file moved; the baseline `make check` on the untouched export was green (294 tests), though one test in it was flaky (below). Both patches are applied. Old `patch_*.py` files and `.patch-backups/` are excluded from exports by design, so they were not inspected; patches never delete themselves, so leftovers are expected, not a failed application.
+
+**Changed**
+- Python 3.14: `.python-version`, `requires-python >=3.14`, ruff `py314`, mypy 3.14, Dockerfile (`uv:python3.14-trixie-slim` → `python:3.14-slim-trixie`), devcontainer (`python:3-3.14-trixie`), README badge, docs. 3.15 is out but aiogram 3.31 declares `python<3.15` (D16).
+- Dependencies: floors raised to what `make check` ran against; `anthropic>=2.3,<3` (major jump from `>=1.15`), `redis>=7.4,<8` (aiogram's `RedisStorage` cap; the resolver had been free to pick redis-py 8.1.0), `pyyaml>=6.0.3` (3.14 wheels), current pytest, pytest-asyncio, ruff, mypy, httpx2.
+- CI: `actions/checkout` v7.0.1 and `astral-sh/setup-uv` v10.3.2 pinned by commit SHA (Node 24; `setup-uv` has no floating tags since v8), `uv sync --locked` (D18).
+- **Flaky test fixed:** `test_auto_mode_lets_model_load_a_skill` failed in 6 of 40 runs. Cause: `FakeLLM` routed on the whole prompt, and the folk-toolkit helper `hp_dragonet` («боится щекотки») matched its fear rule whenever the unseeded toolkit RNG drew it, so "Surprise me" went to `metaphorical`. `FakeLLM` now strips the `<folk_toolkit>` block before routing; a regression test walks every toolkit entry and fails without the fix.
+- Patch engine: next steps print the exact `rm` line for *finished* `patch_*.py` files in the repo root (applied and not rolled back, judged by `.patch-backups/`), never for scripts that were not applied yet (the next ones of a chain); nothing is deleted by the patch. One test covers finished, pending and rolled-back scripts.
+- Docs: AGENTS.md (stack, `uv lock` rule, upgrade recipe, new pitfalls: aiogram caps, lock not in exports, SHA-pinned actions, PG 18 volume change, stale patch scripts; testing rule: randomness must not decide a test), MODUS_OPERANDI.md (cleanup section, `--locked` row, lock note), PROJECT_INSTRUCTIONS.md (Python 3.14), PLAN.md, CHANGELOG, HANDOFF (snapshot, unverified list, D15 superseded, D16-D19).
+- `docker-compose.yml`: `postgres:18-alpine` on a new `pgdata18` volume mounted at `/var/lib/postgresql` (the 18+ layout; any old PG 17 volume is left alone) and `redis:8-alpine` (D19). PostgreSQL 19 is RC only, GA planned 2026-11-19.
+
+**Verified (authoring sandbox):** `make check` green on Python 3.14.4 with the refreshed lock (296 tests, ruff, mypy `--strict`, skills and knowledge checks); the flaky test: 6 failures in 40 runs before the fix, 0 in 60 after, and 10 consecutive full-suite runs green; the suite also passes with deprecation and resource warnings as errors; the Dockerfile builder's `uv sync --frozen --no-dev --extra redis --no-editable` replayed on 3.14 and the knowledge and skills checks run from that non-editable install; `RedisStorage` constructs with redis-py 7.4.1; both pinned action SHAs fetched as real commits; the patch itself applied to a fresh copy of the export (dry run, apply, second run, rollback, anchor drift).
+
+**Unverified:** see section 3, items 5, 7, 8 and 9 (first CI run, Docker build and the PostgreSQL 18 / Redis 8 compose stack, live Anthropic API with SDK 2.x, newer 3.14.x patch levels). `uv.lock` is not in the export, so the owner's lock was never seen; it must be refreshed locally.
+
+**Next:** `uv lock --upgrade && uv sync --all-extras && make check`, commit with `uv.lock`, rebuild the Codespace container, delete finished patch scripts, watch the first CI run; start the compose stack once (D19).
+
 
 ### 2026-10-25 — patch 0002-verify-uv-hint
 

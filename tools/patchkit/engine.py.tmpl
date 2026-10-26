@@ -214,6 +214,24 @@ def git_dirty(root: Path) -> int:
     return len([line for line in out.splitlines() if line.strip()])
 
 
+def leftover_scripts(root: Path) -> list[str]:
+    """Finished patch scripts still lying in the repo root; patches never delete anything.
+
+    patch_<id with underscores>.py is finished when .patch-backups/<id>/ holds a run that was not rolled
+    back. A script that was never applied (the next ones of a chain) is never listed, so following the
+    hint cannot delete a pending patch.
+    """
+    me = Path(__file__).resolve()
+    found = []
+    for script in sorted(root.glob("patch_*.py")):
+        if not script.is_file() or script.resolve() == me:
+            continue
+        patch_id = script.stem.removeprefix("patch_").replace("_", "-")
+        if any((root / BACKUP_DIR / patch_id).glob("*/manifest.json")):
+            found.append(script.name)
+    return found
+
+
 def prune_empty_parents(path: Path, root: Path) -> None:
     """Remove directories left empty by a move or a rollback (never the repo root)."""
     for parent in path.parents:
@@ -378,6 +396,11 @@ def main(argv: list[str] | None = None) -> int:
         f'git add -A && git commit -m "{COMMIT_MESSAGE.splitlines()[0]}"',
         f"undo if needed: python3 {Path(__file__).name} --rollback",
     ]
+    if leftovers := leftover_scripts(root):
+        steps.append(
+            "once committed, delete finished patch scripts (they never delete themselves): "
+            "rm " + " ".join(leftovers)
+        )
     print("\nNext steps:")
     for number, step in enumerate(steps, 1):
         print(f"  {number}. {step}")

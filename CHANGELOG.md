@@ -29,14 +29,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
   engine and builder, with its own tests).
 - **Docs**: `docs/KNOWLEDGE.md`, `docs/CHEER.md`, `docs/MODUS_OPERANDI.md`,
   `docs/PROJECT_INSTRUCTIONS.md`; README rewritten.
-- 108 new tests (294 total).
+- 108 new tests (294 total); 296 after the toolchain upgrade and its fixes.
 
 ### Fixed
+- **Flaky test** `test_auto_mode_lets_model_load_a_skill` (about 15% of runs, since the folk toolkit arrived): the fake model routed on
+  the whole prompt, and the toolkit helper «дракончик, который боится щекотки» matched its fear rule, so "Surprise me" went to
+  `metaphorical`. The fake model now ignores the `<folk_toolkit>` block when routing; a regression test checks every toolkit entry.
+- CI no longer depends on Node 20 actions (`checkout@v4`, `setup-uv@v6`; GitHub scheduled their removal from runners for
+  2026-09-16): both are pinned by commit SHA at current majors (`checkout` v7.0.1, `setup-uv` v10.3.2), and `uv sync --locked` fails on a stale `uv.lock`.
+- `redis` is bounded to `<8`, matching what aiogram's `RedisStorage` declares (the unbounded `redis>=5.0` let the resolver pick redis-py 8.1.0).
+- Patch scripts print the exact `rm` line for *finished* `patch_*.py` files in the repo root (applied and not rolled back, judged by
+  `.patch-backups/`); scripts that were never applied, such as the next ones of a chain, are never listed. They delete nothing themselves.
 - Patch scripts: `--verify` now reports a missing `uv`/`make` with install hints instead of crashing, and the
   next steps mention installing `uv` when it is not on PATH.
-- `.python-version` pins Python 3.12 so uv does not pick a newer interpreter (e.g. 3.14 in a Codespace).
+- `.python-version` pins the interpreter so uv does not pick whatever Python the machine has (3.12 at first; 3.14 since the toolchain upgrade).
 
 ### Changed
+- **Python 3.14** everywhere: `.python-version`, `requires-python`, ruff/mypy targets, Dockerfile (`uv:python3.14-trixie-slim` →
+  `python:3.14-slim-trixie`, Debian 13), devcontainer (`python:3-3.14-trixie`), README badge. 3.15 is out but aiogram 3.31 caps
+  `python<3.15`.
+- Dependency floors raised to the versions `make check` ran against: `anthropic>=2.3,<3` (was `>=1.15`), `redis>=7.4,<8`,
+  `pyyaml>=6.0.3` (first with 3.14 wheels), pytest 9.1, pytest-asyncio 1.4, ruff 0.17, mypy 2.4, httpx2 2.16. Refresh the lock with
+  `uv lock --upgrade`.
+- `docker-compose.yml`: PostgreSQL 18 (`postgres:18-alpine`, volume `pgdata18` mounted at `/var/lib/postgresql`, the layout 18+ images
+  expect) and Redis 8 (`redis:8-alpine`). PostgreSQL 19 is only at RC (GA planned 2026-11-19), so 18 is the newest release.
 - The bot speaks as Luna: feminine voice in all UI strings, bot description and `/help`;
   main menu gains "💛 Тёплые слова"; settings screen shows the warm-words frequency.
 - The system prompt starts from Luna's persona instead of an anonymous storyteller.

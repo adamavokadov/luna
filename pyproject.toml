@@ -3,10 +3,10 @@ name = "skazki-bot"
 version = "0.1.0"
 description = "Telegram-бот: персональные сказки для детей на русском языке"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "aiogram>=3.31,<4",
-    "anthropic>=1.15",
+    "anthropic>=2.3,<3",
     "sqlalchemy[asyncio]>=2.1",
     "aiosqlite>=0.22",
     "asyncpg>=0.32",
@@ -14,20 +14,20 @@ dependencies = [
     "pydantic>=2.13",
     "pydantic-settings>=2.16",
     "structlog>=26.1",
-    "pyyaml>=6.0",
+    "pyyaml>=6.0.3",  # first release with Python 3.14 wheels
 ]
 
 [project.optional-dependencies]
-redis = ["redis>=5.0"]
+redis = ["redis>=7.4,<8"]  # aiogram's RedisStorage is tested against redis-py < 8
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3",
-    "pytest-asyncio>=0.24",
-    "ruff>=0.8",
-    "mypy>=1.13",
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.17",
+    "mypy>=2.4",
     "types-PyYAML",
-    "httpx2>=2.0",  # HTTP-слой SDK Anthropic; нужен для подставного транспорта в тестах адаптера
+    "httpx2>=2.16",  # HTTP-слой SDK Anthropic; нужен для подставного транспорта в тестах адаптера
 ]
 
 [build-system]
@@ -46,7 +46,7 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py314"
 src = ["src", "tests"]
 extend-exclude = ["patch_*.py", "patches", ".patch-backups"]  # AI-workflow artifacts, not project code
 
@@ -61,7 +61,7 @@ ignore = [
 "tests/*" = ["ASYNC109"]  # сигнатуру make_request диктует aiogram
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 plugins = ["pydantic.mypy"]
 mypy_path = "src"

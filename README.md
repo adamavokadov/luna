@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="Python 3.12" src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white">
+  <img alt="Python 3.14" src="https://img.shields.io/badge/python-3.14-3776AB?logo=python&logoColor=white">
   <img alt="aiogram 3" src="https://img.shields.io/badge/aiogram-3.x-2CA5E0?logo=telegram&logoColor=white">
   <img alt="uv" src="https://img.shields.io/badge/deps-uv-DE5FE9">
   <img alt="ruff" src="https://img.shields.io/badge/lint-ruff-D7FF64">

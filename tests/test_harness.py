@@ -22,7 +22,9 @@ from skazki_bot.harness import (
 )
 from skazki_bot.harness.prompts import LAST_STEP_NOTE
 from skazki_bot.harness.tools import ToolContext, ToolExecutor
-from skazki_bot.llm.base import LLMError, ToolCall
+from skazki_bot.knowledge import load_folk_toolkit
+from skazki_bot.llm.base import LLMError, ToolCall, ToolSpec
+from skazki_bot.llm.fake import FakeLLM
 from skazki_bot.stories.library import load_classics
 from skazki_bot.stories.selector import SelectionContext
 from tests.fakes import ScriptedChat, make_story, text_turn, tool_turn
@@ -477,3 +479,23 @@ async def test_tool_errors_and_limits(registry: SkillRegistry) -> None:
     out = await call(small, "load_skill", name="original")
     assert out.content.endswith("(обрезано)")
     assert len(out.content) < 80
+
+
+async def test_fake_llm_routing_ignores_the_folk_toolkit_block() -> None:
+    """Regression: a helper that "боится щекотки" sent "Surprise me" to metaphorical in ~15% of runs.
+
+    The toolkit block is drawn by an RNG; the fake model must route on the request alone.
+    """
+    load_skill = ToolSpec(name="load_skill", description="", input_schema={})
+    llm = FakeLLM(delay=0)
+    entries = [entry for group in load_folk_toolkit().groups() for entry in group]
+    assert len(entries) > 50  # the whole toolkit, not a sample
+    for entry in entries:
+        message = f"Сказка для Маши, 6 лет.\n<folk_toolkit>\n{entry.text}\n</folk_toolkit>"
+        result = await llm.turn(
+            system="",
+            messages=[{"role": "user", "content": message}],
+            tools=[load_skill],
+            max_tokens=200,
+        )
+        assert result.tool_calls[0].input == {"name": "original"}, entry.id

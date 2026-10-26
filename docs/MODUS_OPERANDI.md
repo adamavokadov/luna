@@ -71,6 +71,12 @@ rm patch_0001_luna_foundation.py             # or keep it locally: /patch_*.py i
 Undo before committing: `python3 patch_0001_luna_foundation.py --rollback`
 (or `git checkout -- . && git clean -fd` if you committed nothing else).
 
+**Cleanup.** Patches never delete anything, themselves included, so finished scripts pile up in the repo root
+(git-ignored, hence harmless to the repository). After the commit, delete them; the script prints the exact
+`rm` line for the finished ones (applied, not rolled back) in its next steps; scripts you have not applied yet are never listed. Do not re-run an old patch: an overwrite-mode step (a rewritten
+`README.md`, say) would put its content back over later edits. `.patch-backups/` is only needed for `--rollback`;
+remove it too once the change is committed and checked.
+
 ### If something goes wrong
 
 | Symptom | Meaning | What to do |
@@ -79,6 +85,7 @@ Undo before committing: `python3 patch_0001_luna_foundation.py --rollback`
 | `anchor is ambiguous` | Same, with repeated code | Same. |
 | `warn ... exists with different content` | You already have a file at a path the patch wanted to create | Kept yours. Compare by hand if it matters. |
 | `uv not found` / `make not found` with `--verify` | The environment lacks the tool (a Codespace created before the devcontainer existed) | `pip install uv`, then `uv sync --all-extras && make check`. The patch itself was already applied. |
+| `uv sync --locked` fails in CI | `uv.lock` does not match `pyproject.toml` (exports and patches never carry the lock) | `uv lock`, commit `uv.lock`. After a dependency change always run `uv lock --upgrade` locally first. |
 | `make check` fails after applying | A real problem or an environment difference | Send the failing output. Do not hand-fix and re-run: that creates drift. |
 | `does not look like the skazki-bot repository` | Wrong directory | `cd` to the repo root or pass `--root`. |
 
@@ -135,3 +142,5 @@ agrees with it.
    second run (idempotent), `--rollback` (tree equals pristine), anchor drift (fails with no
    writes).
 6. Deliver the script and a short note: what changed and why, how to verify, what is unverified.
+7. If dependencies changed, say so in the note: `uv.lock` is skipped by the exporter and the builder, so the owner
+   runs `uv lock --upgrade` and commits the lock together with the patch.
