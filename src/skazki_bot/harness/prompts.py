@@ -117,6 +117,7 @@ def build_user_message(
     recent_formats: Sequence[str],
     sensitive: bool,
     toolkit: str | None = None,
+    folk_source: str | None = None,
 ) -> str:
     parts = [
         "<child_profile>",
@@ -141,6 +142,8 @@ def build_user_message(
         parts.append(f'<overlay name="{overlay.name}">\n{overlay.body}\n</overlay>')
     if classic is not None:
         parts.append(f"<classic_story>\n{classic_block(classic)}\n</classic_story>")
+    if folk_source:
+        parts.append(f"<folk_source>\n{folk_source}\n</folk_source>")
     if recent_formats and primary is None:
         parts.append(
             f"<recent_formats>Недавно рассказывали в форматах: {', '.join(recent_formats)}. "
@@ -157,6 +160,19 @@ def build_user_message(
             "для ребёнка из <child_profile>. Подбери формат под ребёнка"
             + (" и под <idea>." if idea else ".")
         )
+        if folk_source:
+            task += (
+                " Если выбранный формат строится на сюжете, возьми за основу народный сюжет из "
+                "<folk_source> и не вызывай pick_classic. Если формат устроен иначе "
+                "(медитация, подготовка к событию, поздравление, загадки, цепочка), сюжет не используй."
+            )
+    elif folk_source:
+        task = (
+            "Напиши сказку для ребёнка из <child_profile> по методике из "
+            f'<skill name="{primary.name}">, взяв за основу народный сюжет из <folk_source>.'
+        )
+        if idea:
+            task += " Сюжет должен служить мысли из <idea>."
     elif classic is not None:
         task = (
             "Перескажи классический сюжет из <classic_story> по-новому для ребёнка из <child_profile>, "

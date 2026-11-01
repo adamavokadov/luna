@@ -53,7 +53,27 @@ print(folk_source_block(plots[0]))
 
 Selection filters by age, `scary` (the age profile's limit, and at most 1 at bedtime, calm plots
 only), then ranks by theme overlap, motif overlap and "not seen yet". It is deterministic for a
-seeded `random.Random`. **It is not wired into the harness yet**: see HANDOFF, next steps.
+seeded `random.Random`. `pick_folk_source` chooses one plot for a tale: weighted random among the top 3, like
+`select_classic`.
+
+## How the bot uses it (automatic)
+
+`TaleHarness._folk_source_for` decides, in code and before the model runs:
+
+| Situation | Plot offered? |
+|---|---|
+| "Surprise me" (the model picks the format), no idea | yes; the task says: use it if the chosen format is plot-based, then do not call `pick_classic` |
+| Format with skill metadata `folk-source: open` (`original`, `rhyme`, `bedtime`), no idea | yes |
+| `values` (`folk-source: motif`) with a value in the idea ("Делиться", "Говорить правду") | yes, chosen by motif (`folk_idea_hints.yaml`); the idea stays in the prompt |
+| Any parent idea in the other formats, or an idea naming no known value | no: the parent's wish is kept as is |
+| `classic`, `cumulative`, `funny`, `riddles`, `celebration`, `sequel`, `educational`, `life-event`, `metaphorical`, `meditation` | no (they have their own structure or purpose) |
+| Sensitive topic, or `FOLK_SOURCES_ENABLED=false` | no |
+
+The pick uses the child's age and `scary` limit, bedtime (calm plots only), interests (themes), and the tale history:
+plots already told are pushed down, liked ones up, disliked ones far down (the same `seed_id` history as classics).
+When the finished tale used a plot-capable format, the plot id is saved as the tale's `seed_id` and the mode is
+`folk`; in "surprise me" the model may still choose a format that ignores the plot, then nothing is recorded.
+A separate random generator keeps classic selection unchanged.
 
 ## Adding plots
 

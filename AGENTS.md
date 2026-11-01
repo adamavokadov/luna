@@ -163,6 +163,8 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
 - `knowledge/tales/classics.yaml`: synopses only (never reproduce protected texts); fields and
   theme vocabulary are validated; frightening endings are softened via `ending_hint`.
 - `knowledge/tales/world_folk.yaml`: world folk plots as own-word synopses cut into beats (`docs/FOLK_SOURCES.md`).
+  The harness picks one in code (not the model) for "surprise me" and skills with `folk-source` metadata; a parent's own idea
+  wins (only `motif` skills let a named value steer the pick); never on sensitive topics; `FOLK_SOURCES_ENABLED` is the kill switch.
   Never quotes or closely paraphrases a collection; source books and their texts never enter the repo or a patch;
   `scary >= 2` needs an `ending_hint`; authored (non-folk) works are not added.
 - `knowledge/tales/folk_toolkit.yaml`: openings, closings, refrains, helpers, objects, lullabies;

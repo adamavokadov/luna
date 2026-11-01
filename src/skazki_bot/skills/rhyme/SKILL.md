@@ -6,6 +6,7 @@ metadata:
   emoji: "🎵"
   max-age: "8"
   length-factor: "0.7"
+  folk-source: "open"
   order: "60"
 ---
 # Сказка в стихах

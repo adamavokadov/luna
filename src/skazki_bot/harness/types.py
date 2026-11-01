@@ -75,6 +75,7 @@ class RunResult:
     skill: str | None
     seed_id: str | None
     trace: RunTrace
+    mode: str = "original"  # original | classic | folk: откуда взят сюжет (см. Tale.mode)
 
 
 class HarnessError(LLMError):

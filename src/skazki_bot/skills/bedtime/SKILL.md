@@ -6,6 +6,7 @@ metadata:
   emoji: "🌙"
   overlay: "true"
   length-factor: "0.9"
+  folk-source: "open"
   order: "5"
 ---
 # Сказка на ночь

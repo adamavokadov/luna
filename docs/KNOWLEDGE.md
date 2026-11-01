@@ -27,6 +27,7 @@ Validate everything: `make kb-check`.
 | Piece | When | How |
 |---|---|---|
 | `classics.yaml` | the `classic` skill ("classic, retold") | `stories/library.py` + `stories/selector.py` pick a plot for the child's age and interests; the plot's beats go into the prompt; the model retells it for this child. |
+| `world_folk.yaml` | "Surprise me" and plot-based formats (`folk-source` in skill metadata), unless the parent gave an idea or the topic is heavy | `harness/runner.py` picks one plot for the child (`knowledge/folk_sources.pick_folk_source`: age, bedtime, interests, history, likes) and adds it as a `<folk_source>` block; the model retells it. The plot id is saved as the tale's `seed_id` (mode `folk`). Details: `docs/FOLK_SOURCES.md`. |
 | `folk_toolkit.yaml` | every tale request except heavy topics | `harness/runner.py` picks an opening, a closing, a refrain (age <= 7), a helper and a magic object (`knowledge/tale_kb.pick_toolkit`) and adds them to the user message as an optional `<folk_toolkit>` block. The model may use, rework or ignore them. |
 
 Design choices worth knowing:
@@ -49,8 +50,10 @@ Only works that are folk or out of copyright. Soften frightening endings in `end
 ### World folk plots (`world_folk.yaml`)
 
 Plots from many peoples, cut into beats, for composing new tales. Own words only: no quotations,
-no close paraphrase of any collection; harsh originals carry an `ending_hint`. Not wired into the
-harness yet. Schema, rules, retrieval and the catalog of read books: `docs/FOLK_SOURCES.md`.
+no close paraphrase of any collection; harsh originals carry an `ending_hint`. The bot offers
+them automatically (see the table above). Schema, rules, retrieval, wiring and the catalog of read
+books: `docs/FOLK_SOURCES.md`. `folk_idea_hints.yaml` maps a value a parent names («Делиться»,
+«Говорить правду») to plot motifs.
 
 ### Adding toolkit entries (`folk_toolkit.yaml`)
 

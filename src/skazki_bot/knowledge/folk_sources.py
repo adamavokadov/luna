@@ -12,7 +12,8 @@ interests and history, and `folk_source_block` renders one as a Russian prompt b
 from __future__ import annotations
 
 import random
-from collections.abc import Iterable, Sequence
+from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from functools import lru_cache
 from typing import Literal
 
@@ -63,6 +64,8 @@ MIN_BEATS = 4
 MAX_BEATS = 9
 HINT_REQUIRED_FROM_SCARY = 2  # a scary plot must say how its harsh places are softened
 BEDTIME_MAX_SCARY = 1
+MOTIF_WEIGHT = 1.5  # per matching motif; a theme match is worth 2.0
+IDEA_MOTIF_WEIGHT = 5.0  # a value the parent named outweighs the child's interests
 
 
 class Collection(BaseModel):
@@ -166,10 +169,30 @@ def eligible_sources(
     return sorted(pool, key=lambda s: min(abs(s.min_age - age), abs(s.max_age - age)))[:5]
 
 
-def _score(source: FolkSource, themes: set[str], motifs: set[str], seen: Iterable[str]) -> float:
-    value = 2.0 * len(set(source.themes) & themes) + 1.5 * len(set(source.motifs) & motifs)
-    times = list(seen).count(source.id)
-    return value + (3.0 if times == 0 else -2.0 * times)
+def _seen_counter(seen: Mapping[str, int] | Iterable[str]) -> Counter[str]:
+    """Accept a Counter or mapping (from the tale history) as well as a plain list of ids."""
+    if isinstance(seen, Mapping):
+        return Counter({k: int(v) for k, v in seen.items()})
+    return Counter(seen)
+
+
+def _score(
+    source: FolkSource,
+    themes: set[str],
+    motifs: set[str],
+    seen: Counter[str],
+    liked: frozenset[str],
+    disliked: frozenset[str],
+    motif_weight: float = MOTIF_WEIGHT,
+) -> float:
+    value = 2.0 * len(set(source.themes) & themes) + motif_weight * len(set(source.motifs) & motifs)
+    times = seen.get(source.id, 0)
+    value += 3.0 if times == 0 else -2.0 * times
+    if source.id in liked:
+        value += 2.0
+    if source.id in disliked:
+        value -= 5.0
+    return value
 
 
 def find_folk_sources(
@@ -179,23 +202,111 @@ def find_folk_sources(
     bedtime: bool = False,
     themes: Iterable[str] = (),
     motifs: Iterable[str] = (),
-    seen: Iterable[str] = (),
+    seen: Mapping[str, int] | Iterable[str] = (),
+    liked: Iterable[str] = (),
+    disliked: Iterable[str] = (),
     limit: int = 3,
     rng: random.Random | None = None,
+    motif_weight: float = MOTIF_WEIGHT,
 ) -> list[FolkSource]:
     """Up to `limit` different plots: best by score, ties broken by `rng` (deterministic if seeded)."""
     rng = rng or random.Random()
-    theme_set, motif_set, seen_ids = set(themes), set(motifs), list(seen)
+    theme_set, motif_set = set(themes), set(motifs)
+    history, likes, dislikes = _seen_counter(seen), frozenset(liked), frozenset(disliked)
     pool = eligible_sources(sources, age=age, bedtime=bedtime)
     shuffled = rng.sample(pool, k=len(pool))  # stable tie-breaking order for sorted()
-    ranked = sorted(shuffled, key=lambda s: _score(s, theme_set, motif_set, seen_ids), reverse=True)
+    ranked = sorted(
+        shuffled,
+        key=lambda s: _score(s, theme_set, motif_set, history, likes, dislikes, motif_weight),
+        reverse=True,
+    )
     return ranked[: max(limit, 0)]
+
+
+def pick_folk_source(
+    sources: Sequence[FolkSource],
+    *,
+    age: int,
+    bedtime: bool = False,
+    themes: Iterable[str] = (),
+    motifs: Iterable[str] = (),
+    seen: Mapping[str, int] | Iterable[str] = (),
+    liked: Iterable[str] = (),
+    disliked: Iterable[str] = (),
+    rng: random.Random | None = None,
+    top_k: int = 3,
+    motif_weight: float = MOTIF_WEIGHT,
+) -> FolkSource | None:
+    """One plot for one tale: weighted random among the top-k, so the choice is not always the same.
+
+    Same idea as `select_classic`: the best-scoring plots are likely, but not certain.
+    """
+    rng = rng or random.Random()
+    theme_set, motif_set = set(themes), set(motifs)
+    history, likes, dislikes = _seen_counter(seen), frozenset(liked), frozenset(disliked)
+    top = find_folk_sources(
+        sources,
+        age=age,
+        bedtime=bedtime,
+        themes=theme_set,
+        motifs=motif_set,
+        seen=history,
+        liked=likes,
+        disliked=dislikes,
+        limit=top_k,
+        rng=rng,
+        motif_weight=motif_weight,
+    )
+    if not top:
+        return None
+    scores = [_score(s, theme_set, motif_set, history, likes, dislikes, motif_weight) for s in top]
+    floor = min(scores)
+    return rng.choices(top, weights=[v - floor + 1.0 for v in scores], k=1)[0]
+
+
+class IdeaHint(BaseModel):
+    """A value or topic a parent may name (stems, lowercase) and the plot motifs / themes it points to."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    stems: list[str] = Field(min_length=1)
+    motifs: list[Motif] = Field(default_factory=list)
+    themes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> IdeaHint:
+        if not self.motifs and not self.themes:
+            raise ValueError("an idea hint needs motifs or themes")
+        if any(stem != stem.lower() or len(stem) < 3 for stem in self.stems):
+            raise ValueError("stems are lowercase and at least 3 characters")
+        return self
+
+
+@lru_cache
+def load_idea_hints() -> tuple[IdeaHint, ...]:
+    raw = load_yaml("tales/folk_idea_hints.yaml")
+    return tuple(IdeaHint.model_validate(item) for item in raw)
+
+
+def hints_for_idea(
+    idea: str, hints: Sequence[IdeaHint] | None = None
+) -> tuple[list[str], list[str]]:
+    """Motifs and themes that a parent's free-text idea points to (empty if it names nothing known)."""
+    text = idea.lower().replace("ё", "е")
+    motifs: list[str] = []
+    themes: list[str] = []
+    for hint in hints if hints is not None else load_idea_hints():
+        if any(stem.replace("ё", "е") in text for stem in hint.stems):
+            motifs += [m for m in hint.motifs if m not in motifs]
+            themes += [t for t in hint.themes if t not in themes]
+    return motifs, themes
 
 
 FOLK_SOURCE_INTRO = (
     "Народный сюжет-основа. Перескажи его заново для этого ребёнка своими словами: "
-    "меняй героев, место и детали, не копируй ничьих готовых текстов. "
-    "Можно взять только одно звено сюжета как зерно для своей сказки."
+    "сохрани ход событий и главную мысль, но смени героев, место и детали и вплети ребёнка. "
+    "Не копируй ничьих готовых текстов и не называй сборники. "
+    "Если сюжет не ложится на выбранный формат, возьми одно звено как зерно для своей сказки."
 )
 
 

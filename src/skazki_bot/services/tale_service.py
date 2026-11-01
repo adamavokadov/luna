@@ -188,7 +188,7 @@ class TaleService:
                 user_id=user_id,
                 child_id=child_id,
                 seed_id=result.seed_id,
-                mode="classic" if result.seed_id else "original",
+                mode=result.mode,
                 bedtime=request.bedtime or result.skill == BEDTIME,
                 title=result.title[:200],
                 text=result.body,

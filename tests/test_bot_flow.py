@@ -17,6 +17,7 @@ from skazki_bot.bot.callbacks import (
     TaleCb,
 )
 from skazki_bot.domain.enums import Gender
+from skazki_bot.knowledge import load_folk_sources
 from skazki_bot.llm.base import ModelRefusal
 from skazki_bot.llm.fake import FakeLLM
 from tests.conftest import ADMIN_ID, App, Client
@@ -99,7 +100,9 @@ async def test_auto_mode_lets_model_load_a_skill(client: Client) -> None:
 
     (tale,) = await client.tales()
     assert tale.skill == "original"  # FakeLLM маршрутизирует в «волшебную сказку»
-    assert tale.mode == "original"
+    # a plot-based format in "surprise me" gets a world folk plot chosen by the bot, and it is recorded
+    assert tale.mode == "folk"
+    assert tale.seed_id in {t.id for t in load_folk_sources().tales}
     assert "Маша" in tale.text
 
     (run,) = await client.runs()

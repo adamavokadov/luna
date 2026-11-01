@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from skazki_bot.cheer.skill import CheerSkillError, load_cheer_skill
 from skazki_bot.knowledge.cheer_kb import load_cheer_kb
-from skazki_bot.knowledge.folk_sources import load_folk_sources
+from skazki_bot.knowledge.folk_sources import load_folk_sources, load_idea_hints
 from skazki_bot.knowledge.tale_kb import load_folk_toolkit
 from skazki_bot.persona import PersonaError, load_persona
 from skazki_bot.stories.library import load_classics
@@ -19,6 +19,7 @@ def main() -> int:
         classics = load_classics()
         toolkit = load_folk_toolkit()
         folk = load_folk_sources()
+        hints = load_idea_hints()
         cheer = load_cheer_kb()
         persona = load_persona()
         skill = load_cheer_skill()
@@ -28,7 +29,7 @@ def main() -> int:
     print(f"✓ tales: {len(classics)} classic plots, {len(toolkit)} folk toolkit entries")
     print(
         f"✓ folk sources: {len(folk)} plots from {len(folk.collections)} collections, "
-        f"{sum(len(t.beats) for t in folk.tales)} beats"
+        f"{sum(len(t.beats) for t in folk.tales)} beats, {len(hints)} idea hints"
     )
     print(
         f"✓ warm words: {len(cheer.compliments)} compliments, "

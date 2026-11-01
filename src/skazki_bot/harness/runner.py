@@ -32,6 +32,15 @@ from skazki_bot.harness.types import (
     RunResult,
     RunTrace,
 )
+from skazki_bot.knowledge.folk_sources import (
+    IDEA_MOTIF_WEIGHT,
+    MOTIF_WEIGHT,
+    FolkSource,
+    folk_source_block,
+    hints_for_idea,
+    load_folk_sources,
+    pick_folk_source,
+)
 from skazki_bot.knowledge.tale_kb import (
     FolkToolkit,
     load_folk_toolkit,
@@ -63,6 +72,8 @@ class TaleHarness:
         rng: random.Random | None = None,
         toolkit: FolkToolkit | None = None,
         toolkit_rng: random.Random | None = None,
+        folk_sources: Sequence[FolkSource] | None = None,
+        folk_rng: random.Random | None = None,
     ) -> None:
         self._llm = llm
         self.registry = registry
@@ -72,6 +83,8 @@ class TaleHarness:
         # A separate generator: picking folk building blocks must not shift classic selection
         self._toolkit = toolkit if toolkit is not None else load_folk_toolkit()
         self._toolkit_rng = toolkit_rng or random.Random()
+        self._folk = tuple(folk_sources) if folk_sources is not None else load_folk_sources().tales
+        self._folk_rng = folk_rng or random.Random()  # own generator, like the toolkit's
         self._system = build_system(registry)
 
     # --- публичный вход ---------------------------------------------------------------------------
@@ -113,6 +126,7 @@ class TaleHarness:
         trace.skills_loaded.extend(s.name for s in explicit)
         trace.overlays.extend(o.name for o in overlays)
         classic = self._classic_for(inp, primary)
+        folk = self._folk_source_for(inp, primary, sensitive)
 
         base_words = target_words(child.age, inp.length)
         words = self._words(base_words, explicit)
@@ -133,6 +147,7 @@ class TaleHarness:
             recent_formats=[t.skill for t in inp.recent if t.skill][:3],
             sensitive=sensitive,
             toolkit=self._toolkit_block(inp, primary, sensitive),
+            folk_source=folk_source_block(folk) if folk else None,
         )
 
         # 3. Инструменты: у явного навыка — принцип наименьших привилегий
@@ -200,13 +215,18 @@ class TaleHarness:
                 "Сказка не прошла проверки: " + ", ".join(i.code for i in blocking), trace
             )
 
+        # A folk plot counts as used only if the format that ended up written can build on one
+        # (in "surprise me" the model chooses the format after the plot was offered).
+        folk_used = folk is not None and self._can_use_folk(trace.primary_skill)
+        seed_id = classic.id if classic else folk.id if folk and folk_used else None
         return RunResult(
             title=parsed.title,
             body=parsed.body,
             parent_note=parsed.parent_note,
             skill=trace.primary_skill,
-            seed_id=classic.id if classic else None,
+            seed_id=seed_id,
             trace=trace,
+            mode="classic" if classic else "folk" if folk_used else "original",
         )
 
     # --- цикл «модель ↔ инструменты» --------------------------------------------------------------
@@ -361,6 +381,47 @@ class TaleHarness:
             rng=self._toolkit_rng,
         )
         return toolkit_prompt(pick)
+
+    def _folk_source_for(
+        self, inp: RunInput, primary: Skill | None, sensitive: bool
+    ) -> FolkSource | None:
+        """Pick a world folk plot as the basis of this tale (code decides, not the model).
+
+        Offered in "surprise me" and in plot-based formats (skill metadata `folk-source`), never on a
+        sensitive topic or when switched off. A parent's own idea wins: it is kept as is, except for
+        a value-style format (`motif`), where the named value ("делиться") steers the choice.
+        """
+        if not self._cfg.folk_sources_enabled or sensitive or not self._folk:
+            return None
+        mode = primary.meta.folk_source if primary is not None else "open"
+        if mode == "none":
+            return None
+        themes = list(themes_for(list(inp.child.interests)))
+        motifs: list[str] = []
+        if inp.request.idea:
+            if mode != "motif":
+                return None
+            motifs, idea_themes = hints_for_idea(inp.request.idea)
+            if not motifs and not idea_themes:
+                return None
+            themes += idea_themes
+        bedtime = inp.request.bedtime or (primary is not None and primary.name == BEDTIME)
+        return pick_folk_source(
+            self._folk,
+            age=inp.child.age,
+            bedtime=bedtime,
+            themes=themes,
+            motifs=motifs,
+            seen=inp.seen,
+            liked=inp.liked,
+            disliked=inp.disliked,
+            rng=self._folk_rng,
+            motif_weight=IDEA_MOTIF_WEIGHT if motifs else MOTIF_WEIGHT,
+        )
+
+    def _can_use_folk(self, skill_name: str | None) -> bool:
+        skill = self.registry.get(skill_name) if skill_name else None
+        return skill is not None and skill.meta.folk_source != "none"
 
     def _selection(self, inp: RunInput) -> SelectionContext:
         return SelectionContext(

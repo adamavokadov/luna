@@ -15,8 +15,9 @@ _ROUTE_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"стих|рифм", re.IGNORECASE), "rhyme"),
     (re.compile(r"день рождения|праздник", re.IGNORECASE), "celebration"),
 )
-# The folk toolkit is random decoration appended to the request; routing must not depend on it.
-_TOOLKIT_BLOCK = re.compile(r"<folk_toolkit>.*?</folk_toolkit>", re.DOTALL)
+# The folk toolkit and the folk plot are chosen by the bot, not asked for by the parent: routing
+# must not depend on their wording.
+_TOOLKIT_BLOCK = re.compile(r"<(folk_toolkit|folk_source)>.*?</\1>", re.DOTALL)
 _FILLER = (
     "Вокруг было тихо и тепло, а над головой мягко светили звёзды.",
     "По дороге {name} встретил{a} доброго друга, и они пошли дальше вместе.",

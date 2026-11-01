@@ -63,6 +63,9 @@ class SkillMeta(BaseModel):
     presets: str = ""  # варианты тем через «|»
     length_factor: float = Field(default=1.0, alias="length-factor", gt=0.2, le=2.0)
     parent_note: bool = Field(default=False, alias="parent-note")  # нужен раздел «Для родителей»
+    # Может ли формат опираться на народный сюжет из knowledge/tales/world_folk.yaml: «none» — нет,
+    # «open» — да, если родитель не задал свою идею, «motif» — ещё и по идее-ценности («Делиться»)
+    folk_source: str = Field(default="none", alias="folk-source", pattern=r"^(none|open|motif)$")
     order: int = 100
 
 

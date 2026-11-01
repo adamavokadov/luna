@@ -11,9 +11,13 @@ from skazki_bot.knowledge.cheer_kb import CheerItem, CheerKB, Kind, Mood, TimeOf
 from skazki_bot.knowledge.folk_sources import (
     FolkSource,
     FolkSources,
+    IdeaHint,
     find_folk_sources,
     folk_source_block,
+    hints_for_idea,
     load_folk_sources,
+    load_idea_hints,
+    pick_folk_source,
 )
 from skazki_bot.knowledge.tale_kb import FolkToolkit, ToolkitPick, load_folk_toolkit, pick_toolkit
 
@@ -23,14 +27,18 @@ __all__ = [
     "FolkSource",
     "FolkSources",
     "FolkToolkit",
+    "IdeaHint",
     "Kind",
     "Mood",
     "TimeOfDay",
     "ToolkitPick",
     "find_folk_sources",
     "folk_source_block",
+    "hints_for_idea",
     "load_cheer_kb",
     "load_folk_sources",
     "load_folk_toolkit",
+    "load_idea_hints",
+    "pick_folk_source",
     "pick_toolkit",
 ]

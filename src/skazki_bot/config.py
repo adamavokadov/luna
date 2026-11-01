@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     guard_model: str = "claude-haiku-5-5"  # дешёвая быстрая модель для LLM-критика
     guard_effort: Effort = "low"  # the critic is a classifier: keep its thinking small
     critic_enabled: bool = True  # LLM-проверка готовой сказки (безопасность, возраст, род, имя)
+    folk_sources_enabled: bool = True  # народный сюжет-основа для «Удиви меня» и сюжетных форматов
     harness_max_steps: int = Field(default=4, ge=1, le=8)  # ходов «модель ↔ инструменты»
     harness_max_revisions: int = Field(default=1, ge=0, le=2)  # правок по замечаниям критика
     harness_timeout_s: float = Field(default=180.0, gt=0)  # общий бюджет времени на одну сказку

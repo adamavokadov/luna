@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- **The bot now picks a world folk plot for the child automatically** (patch 0007): in "Surprise me" and in plot-based formats
+  (`original`, `rhyme`, `bedtime`, and `values` by the named value) the harness chooses one plot in code from the child's age,
+  bedtime, interests, tale history and likes, and adds it as a `<folk_source>` block; the plot id is saved as the tale's
+  `seed_id` (mode `folk`, no migration). A parent's own idea wins; no plot on sensitive topics. New skill metadata
+  `folk-source` (`none|open|motif`), `knowledge/tales/folk_idea_hints.yaml` (a value the parent names -> plot motifs),
+  `pick_folk_source`, setting `FOLK_SOURCES_ENABLED` (kill switch). 31 new tests (375 in total).
 - **World folk sources** (`knowledge/tales/world_folk.yaml`, `knowledge/folk_sources.py`, `docs/FOLK_SOURCES.md`): 35 traditional plots
   from 8 collections (Chinese, Hungarian, Kalmyk, Cossack, Chukchi, Japanese, French, Baltic, Azerbaijani, Russian epic) as own-word
   synopses cut into beats, with themes, motifs, age, `scary`/`calm` and softening `ending_hint`s; validated loader, age- and

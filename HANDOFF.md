@@ -17,8 +17,8 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
   toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`); LLM layer made native to
   Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling;
-  `make smoke` live check (`0005`); world folk sources as a data foundation for new tales (`0006`, not wired into the harness).
-- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (344 tests, ruff, mypy
+  `make smoke` live check (`0005`); world folk sources as a knowledge base (`0006`) that the bot now picks from automatically (`0007`).
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (375 tests, ruff, mypy
   `--strict`, skills check, knowledge check).
 - **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
@@ -37,6 +37,9 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   control, invitation exactly once, settings flows, `/cheer` flows, small talk.
 - Knowledge bases: schema, authoring rules (gender-neutral «вы», no role words, `{child}` rules,
   emoji, duplicates), toolkit coverage for every age, theme vocabulary.
+- World folk sources in the harness: which formats get a plot, a parent's idea wins, value ideas steer by motif, sensitive topics
+  and the kill switch turn it off, every age by day and at bedtime gets a fitting plot, history/likes steer the pick, the id is
+  recorded (`seed_id`, mode `folk`), classic selection is unchanged.
 - World folk sources: schema and links to collections, no quotation marks or dialogue dashes, `scary >= 2` needs an
   `ending_hint`, every age 2-10 (daytime and bedtime) can be served, retrieval is deterministic, age/bedtime-safe and
   prefers themes, motifs and unseen plots, prompt block shape.
@@ -77,10 +80,14 @@ verified. It is the memory between sessions (human or AI). Read it right after `
     (e.g. Белый мышонок, Волшебный котёл, Три дерева, Белый дракон, Илья Муромец и Соловей-разбойник, Садко) were summarized from
     sampled passages, not a full read, so a few middle beats may differ from the books; the Russian is unreviewed by a native
     speaker; the `scary`, `calm` and `ending_hint` values are the assistant's judgement; the plots were never run through
-    a real model (no real-key run, none of them reaches the harness yet).
+    a real model (no real-key run).
 11. **Copyright stance (D23):** the owner supplied commercial editions (2003-2026); the repository keeps only own-word synopses
     and beats. If the owner wants verbatim texts for a private corpus, that is a separate decision and must stay out of the
     repository and the package.
+12. **Folk plots in the live harness (0007):** all tests use fakes. Not yet seen with a real model: whether it follows the
+    `<folk_source>` block (retells in its own words, does not copy a beat list), whether "surprise me" still calls `pick_classic`
+    despite the instruction, how often it picks a format that ignores the plot, token and cost impact (about 1,000 characters
+    per request), and whether the keyword hints for `values` ideas (`folk_idea_hints.yaml`) match what parents really type.
 
 ## 4. Decisions
 
@@ -110,7 +117,9 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D22 | A model refusal is `ModelRefused` (category only), run outcome `refused`, same gentle message as a guard block; the critic still fails open but a failed critic leaves `critic_used=False` | No new user copy; no refusal content or explanation is stored; deterministic checks always ran |
 | D23 | World folk plots enter the repo as own-word synopses cut into beats, never as chunked source text; collections are cited as provenance only; authored (non-folk) works are not added; `scary >= 2` needs an `ending_hint` | The supplied books are retellings and translations with living rights holders; `AGENTS.md` already limits the knowledge base to synopses of folk or out-of-copyright material. A "chunk" is a beat (one event), which is also the right unit for retelling |
 | D24 | World folk plots live in their own file and API (`world_folk.yaml`, `folk_sources.py`), not in `classics.yaml` | The `classic` skill lists every eligible classic as a button; hundreds of plots would flood that menu and change behaviour without a decision. `FolkSource` also has fields classics lack (origin, kind, motifs, `calm`) |
-| D25 | Folk sources are data and retrieval only: nothing in the harness or prompts reads them yet | Using them changes tale content, cost and variety; it needs the owner's choice and a real-model run (next step 6) |
+| D25 | (superseded by D26) Folk sources are data and retrieval only | - |
+| D26 | The harness, not the model, picks the folk plot (`TaleHarness._folk_source_for`): offered in "surprise me" and in skills whose metadata says `folk-source: open|motif`; a parent's idea wins (only `motif` skills, i.e. `values`, let a named value steer by motif); never on sensitive topics; `FOLK_SOURCES_ENABLED=false` switches it off | The owner asked for a bot that selects the right plot automatically. Code-side choice is deterministic, testable, free of a tool turn and uses the child's history; the model keeps the creative work |
+| D27 | The plot id is stored in the existing `Tale.seed_id` (mode `folk`), only when the format that was written can use a plot; no migration | Classic history, likes and "do not repeat" then work for folk plots unchanged. In "surprise me" the model picks the format after the plot is offered, so recording is by the loaded format |
 
 ## 5. Next steps (prioritized)
 
@@ -120,7 +129,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
 4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
 5. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
-6. Decide how the world folk plots reach the model (D25): (a) a `<folk_source>` block next to the folk toolkit for the "surprise me" and `original` formats, (b) a `pick_folk_source` tool beside `pick_classic`, (c) a new button/format "сказка народов мира". Whichever is chosen needs a `make eval` run with a real key to compare variety and quality.
+6. With a real key, compare tales with and without the folk plot (`FOLK_SOURCES_ENABLED=false` for the control): does the model retell the plot in its own words, vary names and details, keep the persona, stay within length and cost, and how often does "surprise me" load a format that ignores the plot (`make eval`, read the tales). Tune `FOLK_SOURCE_INTRO` and the task wording in `harness/prompts.py` from what you read.
 7. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`, catalog table): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales; send the next books or name the tales.
 8. Native-speaker read-through of Russian copy (now including `world_folk.yaml`); extend the KBs (target: 100+ compliments).
 9. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
@@ -141,6 +150,31 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-10-27 — patch 0007-folk-source-auto-pick
+
+**Goal:** make the bot choose the right folk plot for the child on its own and use it as the basis of the tale (owner's instruction: decide autonomously, the bot must select and use the source automatically). Requires 0006.
+
+**Decisions (D26, D27)**
+- The harness, not the model, picks the plot, in code before the model runs: age and `scary` limit, bedtime (calm plots only), interests, tale history, likes and dislikes; the choice is a weighted random among the top 3 so children do not all get the same plot; its own random generator leaves classic selection unchanged.
+- Where: "surprise me" and skills with metadata `folk-source: open` (`original`, `rhyme`, `bedtime`) or `motif` (`values`). Skills with their own structure (cumulative, funny, riddles, celebration, sequel, educational, life-event, metaphorical, meditation, classic) get none.
+- A parent's own idea wins and is kept as is. The one exception: the `values` format, where the value named in the idea ("Делиться", "Говорить правду") steers the choice by motif (`folk_idea_hints.yaml`).
+- No plot on sensitive topics; `FOLK_SOURCES_ENABLED=false` switches it off.
+- The plot id is saved in `Tale.seed_id` with mode `folk`, only if the written format can use a plot (in "surprise me" the model picks the format after seeing the plot). No migration: classic history, likes and no-repeat just work.
+
+**Changed**
+- `knowledge/folk_sources.py`: history-aware scoring (Counter history, liked, disliked), `pick_folk_source`, `IdeaHint`, `hints_for_idea`, `load_idea_hints`; new `knowledge/tales/folk_idea_hints.yaml` (15 hints); `make kb-check` validates it.
+- `harness`: `TaleHarness._folk_source_for`, `<folk_source>` block and task wording in `prompts.py`, `RunResult.mode`, skill metadata `folk-source`, setting `folk_sources_enabled`; four skills opted in. `tale_service` stores `result.mode`.
+- `FakeLLM` routing ignores the `<folk_source>` block (it routes by keywords in the request); the auto-mode flow test now expects mode `folk`.
+- Tests: `tests/test_folk_wiring.py` (formats, parent idea, value motifs, sensitive and kill switch, "surprise me" recording, age and bedtime for every age 2-10, history, classic unchanged, hints).
+- Docs: FOLK_SOURCES.md (decision table), KNOWLEDGE.md, SKILLS.md, PLAN.md, AGENTS.md, README env table, `.env.example`, CHANGELOG, HANDOFF.
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green on the post-0006 tree before and after (344, then 375 tests, ruff, mypy `--strict`, skills and knowledge checks).
+
+**Unverified:** everything runs on fakes; see section 3, item 12 (real model following the block, `pick_classic` still called in "surprise me", format choice, cost, keyword hints vs real parent ideas).
+
+**Next:** with a real key, `make smoke`, then `make eval` with and without `FOLK_SOURCES_ENABLED`, and read the tales; then more plots (`docs/FOLK_SOURCES.md`).
+
 
 ### 2026-10-27 — patch 0006-world-folk-sources
 

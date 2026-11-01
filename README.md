@@ -155,6 +155,7 @@ Full commented list: [`.env.example`](.env.example). Key variables:
 | `GUARD_EFFORT` | `low` | thinking depth of the critic |
 | `LLM_STRICT_TOOLS` | `true` | strict tool use for the skill tools (kill switch) |
 | `CRITIC_ENABLED` | `true` | LLM check of the finished tale |
+| `FOLK_SOURCES_ENABLED` | `true` | the bot offers a world folk plot as the basis of "Surprise me" and plot-based formats (kill switch) |
 | `HARNESS_MAX_STEPS` / `_MAX_REVISIONS` / `_TIMEOUT_S` | `4` / `1` / `180` | harness bounds |
 | `SKILLS_DIR` | — | extra skills directory (overrides built-ins) |
 | `DAILY_TALE_LIMIT` | `5` | tales per parent per day |
