@@ -166,7 +166,9 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
   The harness picks one in code (not the model) for "surprise me" and skills with `folk-source` metadata; a parent's own idea
   wins (only `motif` skills let a named value steer the pick); never on sensitive topics; `FOLK_SOURCES_ENABLED` is the kill switch.
   Never quotes or closely paraphrases a collection; source books and their texts never enter the repo or a patch;
-  `scary >= 2` needs an `ending_hint`; authored (non-folk) works are not added.
+  `scary >= 2` needs an `ending_hint`; authored (non-folk) works are not added. `oral_*` collections (no publisher) mean
+  "known from many retellings, written from general knowledge"; plots of living peoples are told as tales of that
+  people, never mixed across peoples, never sacred rites (`docs/FOLK_SOURCES.md`).
 - `knowledge/tales/folk_toolkit.yaml`: openings, closings, refrains, helpers, objects, lullabies;
   each entry has age range, `calm`, optional themes. Tests require every age 2-10 to be servable.
 - `knowledge/cheer/*.yaml`: ids `cm`/`en`/`pr` + digits, `moods`, `times`, `{child}` rules.

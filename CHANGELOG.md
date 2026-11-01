@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- **46 more world folk plots** (patch 0008, 81 in total from 35 cultures): Africa (Ananse, Zulu, Igbo, Efik), India (Panchatantra, Jataka,
+  Birbal), China, Japan, Korea, Vietnam, Indonesia, the Philippines, Turkey (Nasreddin), Ireland, Norway, Finland, Greece, Portugal, the
+  Pacific Northwest, the Cherokee, the Aztecs, the Maori and the Gunai of Australia. New "oral tradition" collections (no publisher),
+  35 origins, softening `ending_hint`s. The harness picks among all of them automatically (0007).
 - **The bot now picks a world folk plot for the child automatically** (patch 0007): in "Surprise me" and in plot-based formats
   (`original`, `rhyme`, `bedtime`, and `values` by the named value) the harness chooses one plot in code from the child's age,
   bedtime, interests, tale history and likes, and adds it as a `<folk_source>` block; the plot id is saved as the tale's

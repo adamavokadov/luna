@@ -23,20 +23,41 @@ from skazki_bot.domain.age import profile_for_age
 from skazki_bot.knowledge.loader import load_yaml
 
 Origin = Literal[
+    "african",
+    "ashanti",
+    "aztec",
     "azerbaijani",
+    "cherokee",
     "chinese",
     "chukchi",
     "cossack",
+    "efik",
     "estonian",
+    "filipino",
+    "finnish",
     "french",
+    "greek",
+    "gunai",
     "hungarian",
+    "igbo",
+    "indian",
+    "indonesian",
+    "irish",
     "japanese",
     "kalmyk",
+    "korean",
     "latvian",
     "lithuanian",
+    "maori",
+    "northwest_coast",
+    "norwegian",
+    "portuguese",
     "russian",
+    "turkish",
     "ukrainian",
     "uzbek",
+    "vietnamese",
+    "zulu",
 ]
 Kind = Literal["animal", "wonder", "everyday", "trickster", "legend", "epic", "parable"]
 Motif = Literal[
@@ -69,14 +90,26 @@ IDEA_MOTIF_WEIGHT = 5.0  # a value the parent named outweighs the child's intere
 
 
 class Collection(BaseModel):
-    """Where a plot was read: provenance only, never a source of text."""
+    """Where a plot was read: provenance only, never a source of text.
+
+    A collection with no publisher and no year is an oral tradition: the plot is known from many
+    recordings and retellings, written from general knowledge and not tied to one edition.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     id: str = Field(pattern=r"^[a-z0-9_]{1,30}$")
     title: str = Field(min_length=3, max_length=200)
-    publisher: str = Field(min_length=2, max_length=80)
-    year: int = Field(ge=1800, le=2100)
+    publisher: str | None = Field(default=None, min_length=2, max_length=80)
+    year: int | None = Field(default=None, ge=1800, le=2100)
+
+    @model_validator(mode="after")
+    def _both_or_neither(self) -> Collection:
+        if (self.publisher is None) != (self.year is None):
+            raise ValueError(
+                f"{self.id}: give both publisher and year, or neither (oral tradition)"
+            )
+        return self
 
 
 class FolkSource(BaseModel):

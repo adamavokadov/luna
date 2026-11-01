@@ -21,6 +21,14 @@ retellings, translations and editions with their own authors and publishers. So:
   with fewer than 4 or more than 9 beats, and any `scary >= 2` plot without an `ending_hint`.
 - Authored literary works (a modern author's plays or stories, poems of 20th-century poets) are
   not folk material and are not included; see the catalog below.
+- **Oral-tradition collections** (`oral_*`, no publisher and no year): plots known from many recordings and
+  retellings (Panchatantra and Jataka, Anansi, Nasreddin, Maori and Aboriginal stories, Greek myths, and so on),
+  written from general knowledge, not from one edition. Modern authored picture-book retellings of a folk plot
+  are not reproduced: only the traditional plot is used, in our words.
+- **Cultural care** for plots of living peoples (Indigenous, Aboriginal, African and others): tell them as a tale
+  of that people, with the origin named in `origin`; do not mix names, creatures or customs from different
+  peoples; do not retell ceremonies or sacred rites; keep the tone of a story told to children, not of a rite.
+  When unsure of a detail, leave it out rather than invent it.
 
 ## Schema (`world_folk.yaml`)
 
@@ -84,7 +92,7 @@ A separate random generator keeps classic selection unchanged.
 
 ## Catalog of the first batch (patch 0006)
 
-35 plots from 8 collections. Plots of 1,500+ words were summarized from sampled passages
+The first 35 plots, from 8 collections. Plots of 1,500+ words were summarized from sampled passages
 (opening, three places in the middle, ending), the rest from a full read; a human read-through of
 the longer ones is on the unverified list.
 
@@ -106,3 +114,25 @@ Not included, with reasons:
 - **Хрестоматия, зарубежная**, authored parts (Perrault, Grimm, Andersen, Kipling): public-domain originals, mostly already in `classics.yaml`; the Russian translations in the book are not used.
 - **Мифы и легенды эскимосов** (Rink, Russian edition 2007): ethnographic, mostly dark (revenge, shamans, death). Skipped for children; a few gentle legends may be picked later after a careful read.
 - **Былины** exists twice in the archive (identical files); one was read.
+
+## Second batch (patch 0008): 46 plots from other cultures
+
+Written from general knowledge of each tradition, not from a book (collections `oral_*`). Two were checked
+against several public sources before writing (how Anansi bought the tales of the Sky God; Tiddalik, a story of the
+Gunai/Kurnai people of Victoria); the rest were not checked against sources (see HANDOFF, unverified item 13).
+
+| Region (collection) | Plots |
+|---|---|
+| Africa (`oral_africa`) | Как Ананси купил сказки, Горшок мудрости (ashanti); Черепаха летит на пир (igbo); Почему Солнце и Луна живут на небе (efik); Почему комар жужжит в ухо; Заяц, бегемот и слон (общеафриканские); Унанана и слон (zulu) |
+| India (`oral_south_asia`) | Обезьяна и крокодил, Заяц и лев, Слон и слепцы, Бирбал и кичри, Царь обезьян, Три рыбы, Синий шакал |
+| East and South-East Asia (`oral_east_se_asia`) | Chinese: Чудище Нянь, Пастух и ткачиха, Нюйва чинит небо, Хоу И и девять солнц; Japanese: Мышка ищет самого сильного жениха, Дзидзо в соломенных шляпах, Момотаро, Иссумбоси; Korean: Брат и сестра, ставшие Солнцем и Луной, Хынбу и Нольбу; Vietnamese: Пирог баньчынг, Бамбук в сто колен; Indonesian: Мышиный олень и крокодилы; Filipino: Обезьяна и черепаха |
+| Turkey (`oral_middle_east`) | Три анекдота о Ходже Насреддине: Котёл, который родил; Угощение для шубы; Ключ под фонарём |
+| Europe (`oral_europe`) | Irish: Финн Маккул и младенец, Лосось знания; Norwegian: Муж-хозяин, Почему море солёное; Finnish: Кантеле Вяйнямёйнена; Greek: Царь Мидас, Деметра и Персефона, Северный ветер и Солнце; Portuguese: Суп из камня |
+| Americas, Oceania, Australia (`oral_americas_pacific`) | Ворон и свет (Pacific Northwest Coast); Почему у опоссума голый хвост (cherokee); Кролик на Луне, Кетцалькоатль и кукуруза (aztec); Мауи ловит Солнце (maori); Лягушка Тиддалик (gunai) |
+
+Harsh originals are softened through `ending_hint` (swallowing, hunting, tigers, ogres, heart-eating, deaths); the
+plots that remain sad (Журавлиные перья, Деметра и Персефона) say how to keep a gentle ending.
+
+Ideas for later batches: Georgian, Armenian, Persian, Mongolian, Kazakh and Central Asian tales (Aldar Kose),
+Sami and Inuit gentle tales, more Native American tales told with the people's own framing, Pacific islands, the
+Arabian Nights (curated), Slavic tales that are not yet in `classics.yaml`.

@@ -24,7 +24,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
   `uv.lock` is not in exports: the owner refreshes it (`uv lock --upgrade`).
 - **DB head:** migration `0003` (warm-words columns on `users`).
-- **Content:** 14 tale skills; 25 classic plots; 35 world folk plots (217 beats, 8 collections); 58 folk-toolkit entries;
+- **Content:** 14 tale skills; 25 classic plots; 81 world folk plots (491 beats, 14 collections, 35 cultures); 58 folk-toolkit entries;
   50 compliments, 36 encouragements, 36 proverbs.
 - **Version:** `0.1.0` in `pyproject.toml` (not bumped; see `CHANGELOG.md`).
 
@@ -88,6 +88,11 @@ verified. It is the memory between sessions (human or AI). Read it right after `
     `<folk_source>` block (retells in its own words, does not copy a beat list), whether "surprise me" still calls `pick_classic`
     despite the instruction, how often it picks a format that ignores the plot, token and cost impact (about 1,000 characters
     per request), and whether the keyword hints for `values` ideas (`folk_idea_hints.yaml`) match what parents really type.
+13. **Second batch of folk plots (0008):** the 46 plots were written from the assistant's general knowledge of each tradition, not from a
+    book; only Anansi's stories and Tiddalik were checked against public sources. Names, origins (which people a tale belongs to), and
+    details such as who tricks whom may be off, and several plots exist in many versions. Needs a read by someone who knows the cultures
+    (Indigenous, Aboriginal, African and Asian plots especially), and a native-speaker read of the Russian (transliterations such as Иссумбоси,
+    Нольбу, Бенандоннер, Ньяме are the assistant's choice). The `scary`, `calm` and `ending_hint` values are judgement calls.
 
 ## 4. Decisions
 
@@ -120,6 +125,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D25 | (superseded by D26) Folk sources are data and retrieval only | - |
 | D26 | The harness, not the model, picks the folk plot (`TaleHarness._folk_source_for`): offered in "surprise me" and in skills whose metadata says `folk-source: open|motif`; a parent's idea wins (only `motif` skills, i.e. `values`, let a named value steer by motif); never on sensitive topics; `FOLK_SOURCES_ENABLED=false` switches it off | The owner asked for a bot that selects the right plot automatically. Code-side choice is deterministic, testable, free of a tool turn and uses the child's history; the model keeps the creative work |
 | D27 | The plot id is stored in the existing `Tale.seed_id` (mode `folk`), only when the format that was written can use a plot; no migration | Classic history, likes and "do not repeat" then work for folk plots unchanged. In "surprise me" the model picks the format after the plot is offered, so recording is by the loaded format |
+| D28 | Plots from outside the supplied books are written from general knowledge of the tradition and filed in `oral_*` collections (no publisher, no year); plots of living peoples are told as tales of that people, never mixed, never sacred rites; authored picture-book retellings are not reproduced | The owner asked for more plots from many cultures. Only folk material is allowed, and honesty about provenance matters more than a fake citation |
 
 ## 5. Next steps (prioritized)
 
@@ -130,7 +136,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
 5. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
 6. With a real key, compare tales with and without the folk plot (`FOLK_SOURCES_ENABLED=false` for the control): does the model retell the plot in its own words, vary names and details, keep the persona, stay within length and cost, and how often does "surprise me" load a format that ignores the plot (`make eval`, read the tales). Tune `FOLK_SOURCE_INTRO` and the task wording in `harness/prompts.py` from what you read.
-7. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`, catalog table): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales; send the next books or name the tales.
+7. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`: catalog tables and ideas for later batches): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales from the supplied books, and more cultures (Georgian, Armenian, Persian, Mongolian, Central Asian, Sami, more Native American tales). Have the second batch read by someone who knows the cultures first (unverified item 13).
 8. Native-speaker read-through of Russian copy (now including `world_folk.yaml`); extend the KBs (target: 100+ compliments).
 9. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
 10. Decide on a LICENSE and add it.
@@ -150,6 +156,23 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-10-27 — patch 0008-world-folk-plots-batch-2
+
+**Goal:** more plots from different cultures for the automatic folk-plot pick (owner: add more, find interesting stories and plots in the folklore of different cultures). Requires 0006 and 0007.
+
+**What:** 46 new plots (81 in total, 491 beats, 35 origins) written from general knowledge of each tradition: Africa (Ananse and the Sky God's stories, the pot of wisdom, the tortoise at the feast in the sky, why the sun and the moon live in the sky, the mosquito chain, Unanana, the tug of war), India (Panchatantra, Jataka, Birbal), China (Nian, the cowherd and the weaver, Nüwa, Hou Yi), Japan (Kasa Jizo, Momotaro, Issun-boshi, the mouse's wedding), Korea, Vietnam, Indonesia, the Philippines, Turkey (three Nasreddin anecdotes), Ireland, Norway, Finland (the kantele), Greece (Midas, Demeter and Persephone, the North Wind and the Sun), Portugal (stone soup), the Pacific Northwest (Raven and the light), the Cherokee, the Aztecs, the Maori (Maui and the Sun) and the Gunai (Tiddalik).
+
+**Decisions (D28):** plots not taken from the supplied books go into `oral_*` collections (no publisher, no year; `Collection` needs both or neither) instead of a fake citation; plots of living peoples are told as tales of that people, never mixed, never sacred rites; authored picture-book retellings are not reproduced. Harsh originals carry an `ending_hint` (18 plots have `scary` 2).
+
+**Changed:** `world_folk.yaml` (6 oral collections, 46 plots), `folk_sources.py` (wider `Origin`, optional publisher/year), `tests/test_folk_sources.py` (80+ plots, 30+ origins, oral collections; two retrieval tests no longer rely on one specific plot), docs (FOLK_SOURCES.md second-batch catalog and cultural-care rules, KNOWLEDGE, PLAN, AGENTS, CHANGELOG, HANDOFF).
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green on the post-0007 tree before and after (375, then 376 tests, ruff, mypy `--strict`, skills and knowledge checks). Two plots were checked against public sources (Anansi's stories; Tiddalik).
+
+**Unverified:** see section 3, item 13: the other 44 plots come from general knowledge and have not been read by someone who knows the cultures; names, attributions and details may be off; Russian transliterations are the assistant's choice; `scary`/`calm`/`ending_hint` are judgement calls; still nothing run against a real model. Thin spots: age 2 has only 2 eligible plots and age 3 has 7 (bedtime: 2 and 5), so toddlers repeat sooner; add toddler-friendly plots next.
+
+**Next:** have the second batch read by a person who knows the cultures; `make smoke` and `make eval` with a real key; more toddler plots; further cultures (Georgian, Armenian, Persian, Mongolian, Central Asian, Sami).
+
 
 ### 2026-10-27 — patch 0007-folk-source-auto-pick
 

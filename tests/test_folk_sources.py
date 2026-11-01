@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from skazki_bot.domain.age import profile_for_age
 from skazki_bot.knowledge import find_folk_sources, folk_source_block, load_folk_sources
 from skazki_bot.knowledge.__main__ import main as kb_check
-from skazki_bot.knowledge.folk_sources import FolkSource, FolkSources, eligible_sources
+from skazki_bot.knowledge.folk_sources import Collection, FolkSource, FolkSources, eligible_sources
 from skazki_bot.stories.library import load_classics
 from tests.test_knowledge import KNOWN_THEMES, cyrillic_share
 
@@ -29,8 +29,9 @@ def _emoji(text: str) -> bool:
 
 def test_folk_sources_load_and_are_linked() -> None:
     folk = load_folk_sources()
-    assert len(folk) >= 35
-    assert len(folk.collections) >= 8
+    assert len(folk) >= 80
+    assert len(folk.collections) >= 14
+    assert len({t.origin for t in folk.tales}) >= 30, "plots should come from many cultures"
     classic_ids = {c.id for c in load_classics()}
     assert not classic_ids & {t.id for t in folk.tales}, "ids must not clash with classics.yaml"
     used = {t.collection for t in folk.tales}
@@ -48,6 +49,18 @@ def test_folk_sources_follow_authoring_rules() -> None:
         assert len(set(tale.beats)) == len(tale.beats), tale.id
         if tale.scary >= 2:
             assert tale.ending_hint, tale.id
+
+
+def test_oral_tradition_collections_have_no_publisher() -> None:
+    folk = load_folk_sources()
+    oral = [c for c in folk.collections if c.id.startswith("oral_")]
+    assert len(oral) >= 6
+    assert all(c.publisher is None and c.year is None for c in oral)
+    assert all(
+        c.publisher is not None and c.year is not None for c in folk.collections if c not in oral
+    )
+    with pytest.raises(ValidationError):
+        Collection(id="half", title="Только издательство", publisher="АСТ")
 
 
 def test_every_age_and_bedtime_can_be_served() -> None:
@@ -68,7 +81,7 @@ def test_find_is_deterministic_age_safe_and_prefers_themes_and_unseen() -> None:
     again = find_folk_sources(sources, age=6, themes=["dragons"], rng=random.Random(3))
     assert first == again
     assert len({s.id for s in first}) == len(first) == 3
-    assert first[0].id == "chinese_belyy_drakon"
+    assert "dragons" in first[0].themes
     assert all(s.min_age <= 6 <= s.max_age for s in first)
 
     seen = [first[0].id] * 3
@@ -85,8 +98,9 @@ def test_find_is_deterministic_age_safe_and_prefers_themes_and_unseen() -> None:
 
 def test_motifs_steer_the_pick() -> None:
     sources = load_folk_sources().tales
-    picks = find_folk_sources(sources, age=8, motifs=["three_wishes"], limit=1)
-    assert picks[0].id == "estonian_tri_zhelaniya"
+    picks = find_folk_sources(sources, age=8, motifs=["three_wishes"], limit=2)
+    assert all("three_wishes" in p.motifs for p in picks)
+    assert {p.id for p in picks} <= {"estonian_tri_zhelaniya", "greek_midas"}
 
 
 def test_prompt_block_carries_plot_and_softening() -> None:

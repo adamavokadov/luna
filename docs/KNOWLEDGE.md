@@ -9,7 +9,7 @@ knowledge/
 ├── tales/                       # a) fairy-tale knowledge base (used while generating tales)
 │   ├── classics.yaml            #    25 classic plots: synopses and beats, NOT texts
 │   ├── folk_toolkit.yaml        #    folk poetics: openings, closings, refrains, helpers, objects, lullabies
-│   └── world_folk.yaml          #    35 world folk plots as raw material: synopses and beats, NOT texts (docs/FOLK_SOURCES.md)
+│   └── world_folk.yaml          #    81 world folk plots from 35 cultures as raw material: synopses and beats, NOT texts (docs/FOLK_SOURCES.md)
 └── cheer/                       # b) warm-words knowledge base (used by the cheer skill)
     ├── compliments.yaml         #    50 compliments (ids cm01..)
     ├── encouragements.yaml      #    36 words of encouragement (en01..)
