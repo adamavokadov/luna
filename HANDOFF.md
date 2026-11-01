@@ -13,12 +13,12 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 
 ## 1. Snapshot (update each session)
 
-- **State as of 2026-10-27:** Luna persona, two knowledge bases and the warm-words skill are
+- **State as of 2026-11-01:** Luna persona, two knowledge bases and the warm-words skill are
   implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
   toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`); LLM layer made native to
   Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling;
-  `make smoke` live check (`0005`); world folk sources as a knowledge base (`0006`) that the bot now picks from automatically (`0007`).
-- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (375 tests, ruff, mypy
+  `make smoke` live check (`0005`); world folk sources as a knowledge base (`0006`) that the bot now picks from automatically (`0007`); more plots (`0008`); the offline model's repeating tale fixed, a repetition check in the output guard and Luna's avatar (`0009`).
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (420 tests, ruff, mypy
   `--strict`, skills check, knowledge check).
 - **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
@@ -44,6 +44,10 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   `ending_hint`, every age 2-10 (daytime and bedtime) can be served, retrieval is deterministic, age/bedtime-safe and
   prefers themes, motifs and unseen plots, prompt block shape.
 - Persona: `soul.md` validation; every UI string free of masculine self-reference.
+- Output guard `repetition`: a looping tale (one paragraph over and over, or 40%+ copies) is flagged and revised once; a refrain that
+  returns a few times and short rhythm lines are not; the harness asks for new events in the revision message.
+- Offline model (`FakeLLM`): no repeated paragraph at any word target, name only as a nominative subject, verbs follow the child's
+  gender, the tale passes the deterministic checks at every target the bot can ask for.
 
 ## 3. Unverified / needs a human
 
@@ -93,6 +97,12 @@ verified. It is the memory between sessions (human or AI). Read it right after `
     details such as who tricks whom may be off, and several plots exist in many versions. Needs a read by someone who knows the cultures
     (Indigenous, Aboriginal, African and Asian plots especially), and a native-speaker read of the Russian (transliterations such as Иссумбоси,
     Нольбу, Бенандоннер, Ньяме are the assistant's choice). The `scary`, `calm` and `ending_hint` values are judgement calls.
+14. **Repetition thresholds (0009):** `REPEAT_*` in `harness/guard.py` were chosen by reasoning (toddler tales use refrains on purpose),
+    not by looking at real model output. Unknown: how often a real model trips it, and whether it misses loops inside a single long
+    paragraph (only paragraphs are compared). Watch `repetition` in `generation_runs.issues` after the first real-key runs.
+15. **Avatar (0009):** drawn as SVG by the assistant and rendered with cairosvg in the sandbox; looked at as a PNG and as a circular crop
+    down to 40 px, never on a real Telegram client or in BotFather. The PNG is not in the repository (the patch builder is text-only):
+    it is handed over with the patch, or re-render from `assets/luna/avatar.svg`. The offline model's tale text was read by the assistant only.
 
 ## 4. Decisions
 
@@ -126,6 +136,8 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D26 | The harness, not the model, picks the folk plot (`TaleHarness._folk_source_for`): offered in "surprise me" and in skills whose metadata says `folk-source: open|motif`; a parent's idea wins (only `motif` skills, i.e. `values`, let a named value steer by motif); never on sensitive topics; `FOLK_SOURCES_ENABLED=false` switches it off | The owner asked for a bot that selects the right plot automatically. Code-side choice is deterministic, testable, free of a tool turn and uses the child's history; the model keeps the creative work |
 | D27 | The plot id is stored in the existing `Tale.seed_id` (mode `folk`), only when the format that was written can use a plot; no migration | Classic history, likes and "do not repeat" then work for folk plots unchanged. In "surprise me" the model picks the format after the plot is offered, so recording is by the loaded format |
 | D28 | Plots from outside the supplied books are written from general knowledge of the tradition and filed in `oral_*` collections (no publisher, no year); plots of living peoples are told as tales of that people, never mixed, never sacred rites; authored picture-book retellings are not reproduced | The owner asked for more plots from many cultures. Only folk material is allowed, and honesty about provenance matters more than a fake citation |
+| D29 | Luna's avatar is original art, not a likeness of any game or film character (the owner first asked for the DotA 2 hero Luna "as a fairy-tale hero") | `AGENTS.md` bans copyrighted characters and third-party IP; a recognisable Valve character, repainted, is still that character. The persona (kind, understanding, responsive; `soul.md`) is the brief instead: a moon girl, folk-tale style, a book and a small star |
+| D30 | Repetition is a `fix`-severity guard check (one revision), never a block; only paragraphs of 5+ words count, thresholds lenient for refrains | Toddler tales rely on repeated lines; a looping tale should be rewritten once, not refused. The fake model used to pad by looping and nothing noticed |
 
 ## 5. Next steps (prioritized)
 
@@ -133,7 +145,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
    Codespace container (Python 3.14 image), delete finished patch scripts (`docs/MODUS_OPERANDI.md`), watch the first CI run.
 2. `make run` (fake LLM is fine) and click through: first profile → invitation, `/cheer`, Settings → warm words, small talk phrases.
 3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
-4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
+4. BotFather: set the bot's name to «Луна» and upload the avatar PNG with `/setuserpic` (the SVG source is `assets/luna/avatar.svg`; description/commands refresh at startup). Look at it on a phone: the circle crop is checked only in the sandbox.
 5. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
 6. With a real key, compare tales with and without the folk plot (`FOLK_SOURCES_ENABLED=false` for the control): does the model retell the plot in its own words, vary names and details, keep the persona, stay within length and cost, and how often does "surprise me" load a format that ignores the plot (`make eval`, read the tales). Tune `FOLK_SOURCE_INTRO` and the task wording in `harness/prompts.py` from what you read.
 7. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`: catalog tables and ideas for later batches): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales from the supplied books, and more cultures (Georgian, Armenian, Persian, Mongolian, Central Asian, Sami, more Native American tales). Have the second batch read by someone who knows the cultures first (unverified item 13).
@@ -149,13 +161,36 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   run `uv lock --upgrade` first and commit `uv.lock` too (exports and patches never carry it).
 - Commit (suggested message is printed by the script); do **not** commit the patch script.
 - Codespaces secrets: `BOT_TOKEN`, `ANTHROPIC_API_KEY`.
-- BotFather: `/setname` Луна, `/setuserpic`.
+- BotFather: `/setname` Луна, `/setuserpic` (the PNG delivered with patch 0009).
 
 ## 7. Session log
 
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-11-01 — patch 0009-fake-tale-repeats-and-avatar
+
+**Goal:** the owner ran the bot offline and got a tale that repeated the same five paragraphs about 40 times, with the name in the wrong case («у Рома»); fix it. Also give Luna an avatar for Telegram.
+
+**Cause:** the repetition was `FakeLLM._story` (`LLM_PROVIDER=fake`), not a real model: it cycled five filler lines until 80% of the word target. The real guard had no way to notice a looping model either.
+
+**Decisions (D29, D30)**
+- The avatar is original art. The owner asked for the DotA 2 hero Luna painted as a fairy-tale hero; that is a third-party character (`AGENTS.md` bans such IP), so the avatar is a moon girl in a folk-tale style that follows `soul.md` (kind, understanding, responsive).
+- Repetition is a `fix` check (one revision), never a block, lenient for refrains (toddler tales use them).
+
+**Changed**
+- `llm/fake.py`: 50 distinct beats used once each (a shorter tale beats a looping one), name only as a nominative subject, title «Рома и добрая звёздочка», verbs and «Жила-была/Жил-был» follow the child's gender.
+- `harness/guard.py`: `repeated_paragraphs`, `REPEAT_*` constants, issue code `repetition` with a Russian revision message (no tale text in it).
+- `tests/fakes.py::make_story`: varied paragraphs, identical word counts. New tests: 5 in `test_guard.py`, 1 in `test_harness.py` (looping tale gets a revision), `tests/test_fake_llm.py` (38).
+- `assets/luna/avatar.svg` (24 KB). Docs: AGENTS.md (map, look rule, pitfall), README, PLAN, CHANGELOG, HANDOFF.
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green on the pristine export before (376 tests) and after (420); the offline tale was read at several targets; the avatar was rendered with cairosvg and viewed as a square and as circular crops down to 40 px.
+
+**Unverified:** see section 3, items 14-15: repetition thresholds never met a real model; the avatar was never seen in Telegram or BotFather; the fake tale's Russian was read by the assistant only.
+
+**Next:** upload the PNG with BotFather `/setuserpic` and look at it on a phone; `make smoke` and `make eval` with a real key and watch `repetition` in the issues.
+
 
 ### 2026-10-27 — patch 0008-world-folk-plots-batch-2
 

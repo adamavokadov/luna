@@ -293,6 +293,18 @@ async def test_revision_fixes_missing_name(registry: SkillRegistry) -> None:
     assert chat.calls[1]["messages"][-2]["role"] == "assistant"  # прежняя версия в истории
 
 
+async def test_looping_tale_gets_a_revision_asking_for_new_events(registry: SkillRegistry) -> None:
+    line = "Маша встретила доброго друга, и они пошли дальше вместе по тропинке."
+    looping = "Сказка про Машу\n\n" + "\n\n".join([line] * 14)
+    chat = ScriptedChat([text_turn(looping), text_turn(make_story())])
+    result = await harness_for(registry, chat).run(run_input(skill="original"))
+
+    assert result.trace.revised
+    assert result.trace.issues == []
+    assert "[repetition]" in chat.calls[1]["messages"][-1]["content"]
+    assert result.body.count(line) == 0
+
+
 async def test_only_one_revision_then_deliver_with_soft_issues(registry: SkillRegistry) -> None:
     no_name = make_story(name="Зайка")
     chat = ScriptedChat([text_turn(no_name)])  # правка не помогает

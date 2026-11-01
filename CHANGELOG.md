@@ -7,6 +7,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- **Luna's avatar** (patch 0009): `assets/luna/avatar.svg`, an original character drawn for the bot: a gentle moon girl in a
+  folk-tale style (crescent kokoshnik crown, starry cloak, a small smiling star, a glowing storybook, a night village). It is
+  deliberately not a likeness of any game or film character. A PNG for BotFather's `/setuserpic` is rendered from the SVG.
+- **Repetition check in the output guard** (`harness/guard.py`, code `repetition`, severity `fix`): the same paragraph coming back more
+  than four times, or copies making up 40%+ of the paragraphs, asks the model for one revision. Short lines (under five words) and
+  a refrain that returns a few times are fine, because toddler tales are built on them. 6 new tests; `tests/test_fake_llm.py` (38).
 - **46 more world folk plots** (patch 0008, 81 in total from 35 cultures): Africa (Ananse, Zulu, Igbo, Efik), India (Panchatantra, Jataka,
   Birbal), China, Japan, Korea, Vietnam, Indonesia, the Philippines, Turkey (Nasreddin), Ireland, Norway, Finland, Greece, Portugal, the
   Pacific Northwest, the Cherokee, the Aztecs, the Maori and the Gunai of Australia. New "oral tradition" collections (no publisher),
@@ -53,6 +59,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 - 108 new tests (294 total); 296 after the toolchain upgrade and its fixes; 325 after the LLM-layer upgrade; 327 with `make smoke`.
 
 ### Fixed
+- **The offline model (`LLM_PROVIDER=fake`) repeated the same five paragraphs dozens of times** to reach the word target, and wrote
+  the name in the wrong case («у Рома», «про Рома»). It now tells one continuous tale with 50 distinct beats, uses each beat once
+  (a shorter tale beats a looping one), keeps the name a nominative subject, and follows the child's gender in verbs.
+  `tests/fakes.py::make_story` no longer repeats a paragraph either (same word counts).
 - Per the Claude Platform docs for Sonnet 5.5, the adapter would have run every tale at default adaptive thinking and `high` effort (slow and costly),
   dropped thinking blocks that the API wants back in tool loops and revisions, and let the critic's 700-token budget be spent on
   thinking. None of this had been seen yet because the adapter had only run against a fake transport.

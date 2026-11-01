@@ -90,6 +90,7 @@ src/skazki_bot/
   bot/              handlers/ (start, onboarding, tale, profile, history, settings, cheer, errors,
                     fallback), keyboards.py, callbacks.py, texts.py, smalltalk.py, middlewares.py,
                     states.py, utils.py, views.py, delivery.py, formatting.py
+assets/luna/       avatar.svg (Luna's avatar, original art; the PNG for BotFather is rendered from it, never committed)
 migrations/versions/  0001 base, 0002 skills+traces, 0003 warm-words columns on users
 tests/              conftest.py (App, Client, RecordingSession), fakes.py (ScriptedChat, make_story), test_*.py
 docs/               PLAN, SKILLS, KNOWLEDGE, CHEER, MODUS_OPERANDI, PROJECT_INSTRUCTIONS
@@ -153,6 +154,8 @@ Source of truth: `src/skazki_bot/persona/soul.md` (English notes + a Russian run
 - Short (1-3 sentences), at most two emojis (🌙 ✨ 💛 🌿 🌱 ☀️), no exclamation chains, no officialese.
 - Boundaries: honest about being an AI, no romance or exclusivity, no dependency mechanics, not a
   therapist, no judgment of parenting. Crisis wording → `texts.CRISIS_SUPPORT`, no chit-chat.
+- Look: Luna's avatar is original art (`assets/luna/avatar.svg`: a moon girl in a folk-tale style). Never draw or describe her as a
+  character from a game, film or book; no third-party IP, in images any more than in tales.
 - Changing the persona: edit `soul.md` (and `texts.py` if wording changes), run `make check`.
   `tests/test_persona.py` scans every UI string for masculine self-reference.
 
@@ -238,6 +241,10 @@ repomix export → plan → implement and verify in a sandbox → one idempotent
   `max_tokens` (the adapter raises), enum values may differ in capitalisation, and a field that asks for reasoning can trigger a
   `reasoning_extraction` refusal.
 - Claude 5.x counts about 30% more tokens than 4.x for the same text; re-check `LLM_MAX_TOKENS` and cost after a model change.
+- **Padding is not a story.** A fake or real model must not reach the word target by repeating paragraphs: `FakeLLM` uses every beat
+  once and ends early instead, `make_story` varies its paragraphs, and `check_tale` flags `repetition` (more than 4 copies of one
+  paragraph, or 40%+ copies). Toddler refrains stay legal; tune the `REPEAT_*` constants in `harness/guard.py`, not the tests, if a
+  real model shows false alarms.
 - `.gitignore` must anchor runtime data as `/data/`; a bare `data/` hides package data dirs.
 - `uv.lock` is committed (Dockerfile uses `--frozen`); do not ignore it.
 - SQLAlchemy `rowcount` needs `# type: ignore[attr-defined]` under mypy strict (existing pattern).

@@ -56,7 +56,7 @@ Luna is a warm, attentive storyteller and a gentle companion. [`soul.md`](src/sk
 is the single source of truth for her character, voice, boundaries and examples; its runtime block
 is injected into the system prompt, and tests keep every UI string in her voice (feminine
 self-reference, no anonymous "storyteller"). She is honest about being an AI, never flirts or
-creates dependency, and is not a therapist.
+creates dependency, and is not a therapist. Her avatar is original art in [`assets/luna/`](assets/luna/avatar.svg).
 
 ## How it works
 

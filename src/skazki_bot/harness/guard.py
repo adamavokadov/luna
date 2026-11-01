@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Literal
 
@@ -74,9 +75,37 @@ _LEAK = re.compile(
 
 MIN_BODY_CHARS = 200
 
+# Repetition. Toddler tales lean on refrains on purpose, so a line coming back a few times is fine;
+# the same paragraph over and over is a looping model (or padding) and gets one revision.
+REPEAT_MIN_WORDS = 5  # shorter lines («Топ-топ-топ!») are rhythm, not filler
+REPEAT_MAX_SAME = 4  # one paragraph may come back this many times in total
+REPEAT_DUPLICATE_SHARE = 0.4  # ... and no more than this share of paragraphs may be copies
+REPEAT_MIN_DUPLICATES = 4
+_PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+_NOT_WORD = re.compile(r"[^\w]+")
+
 
 def _words(text: str) -> int:
     return len(text.split())
+
+
+def _normalized(paragraph: str) -> str:
+    return _NOT_WORD.sub(" ", paragraph.lower().replace("ё", "е")).strip()
+
+
+def repeated_paragraphs(body: str) -> int:
+    """How many paragraph copies look like looping rather than a refrain (0 when it reads fine)."""
+    counts = Counter(
+        _normalized(p) for p in _PARAGRAPH_BREAK.split(body) if len(p.split()) >= REPEAT_MIN_WORDS
+    )
+    if not counts:
+        return 0
+    copies = sum(n - 1 for n in counts.values())
+    if max(counts.values()) > REPEAT_MAX_SAME:
+        return copies
+    if copies >= REPEAT_MIN_DUPLICATES and copies / sum(counts.values()) >= REPEAT_DUPLICATE_SHARE:
+        return copies
+    return 0
 
 
 def _name_stem(name: str) -> str | None:
@@ -136,6 +165,16 @@ def check_tale(
     if _LEAK.search(text):
         issues.append(
             Issue("leak", "fix", "В тексте служебные пометки или рассуждения вне сказки — уберите")
+        )
+
+    if repeated_paragraphs(body):
+        issues.append(
+            Issue(
+                "repetition",
+                "fix",
+                "Одни и те же абзацы повторяются. Припев допустим, но объём нельзя набирать "
+                "повтором: в каждом абзаце должно быть новое событие или новая деталь.",
+            )
         )
 
     stem = _name_stem(name)

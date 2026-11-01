@@ -159,3 +159,38 @@ def test_critic_issues_parsed_even_in_code_fence() -> None:
         ("critic_safety", "block"),
         ("critic_x", "fix"),  # неизвестная серьёзность → мягкая
     ]
+
+
+# --- Повторы ----------------------------------------------------------------------------------------
+LOOP = "Маша встретила доброго друга, и они пошли дальше вместе по тропинке."
+
+
+def looped_story(copies: int) -> str:
+    return "Сказка про Машу\n\n" + "\n\n".join([LOOP] * copies)
+
+
+def test_same_paragraph_over_and_over_is_flagged() -> None:
+    assert "repetition" in codes(check(looped_story(12)))
+
+
+def test_old_offline_padding_pattern_is_flagged() -> None:
+    # Five lines cycled until the word target was met: what the fake model used to print.
+    cycle = [f"Строка номер {w} повторяется в сказке снова и снова." for w in "абвгд"]
+    body = make_story(words=100) + "\n\n" + "\n\n".join(cycle * 8)
+    assert "repetition" in codes(check(body))
+
+
+def test_a_refrain_coming_back_a_few_times_is_fine() -> None:
+    refrain = "Тянут-потянут, вытянуть не могут, и зовут на помощь друзей."
+    fresh = make_story(words=300).split("\n\n")
+    body = "\n\n".join([fresh[0], refrain, fresh[1], refrain, fresh[2], refrain, *fresh[3:]])
+    assert "repetition" not in codes(check(body))
+
+
+def test_short_rhythm_lines_are_not_counted() -> None:
+    body = make_story(words=300) + "\n\n" + "\n\n".join(["Топ-топ-топ!"] * 12)
+    assert "repetition" not in codes(check(body))
+
+
+def test_generated_tales_do_not_repeat() -> None:
+    assert "repetition" not in codes(check(make_story(words=300)))
