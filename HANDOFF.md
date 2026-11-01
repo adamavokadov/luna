@@ -13,18 +13,19 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 
 ## 1. Snapshot (update each session)
 
-- **State as of 2026-10-25:** Luna persona, two knowledge bases and the warm-words skill are
+- **State as of 2026-10-27:** Luna persona, two knowledge bases and the warm-words skill are
   implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
   toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`); LLM layer made native to
-  Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling.
-- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (327 tests, ruff, mypy
+  Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling;
+  `make smoke` live check (`0005`); world folk sources as a data foundation for new tales (`0006`, not wired into the harness).
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (344 tests, ruff, mypy
   `--strict`, skills check, knowledge check).
 - **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
   `uv.lock` is not in exports: the owner refreshes it (`uv lock --upgrade`).
 - **DB head:** migration `0003` (warm-words columns on `users`).
-- **Content:** 14 tale skills; 25 classic plots; 58 folk-toolkit entries; 50 compliments,
-  36 encouragements, 36 proverbs.
+- **Content:** 14 tale skills; 25 classic plots; 35 world folk plots (217 beats, 8 collections); 58 folk-toolkit entries;
+  50 compliments, 36 encouragements, 36 proverbs.
 - **Version:** `0.1.0` in `pyproject.toml` (not bumped; see `CHANGELOG.md`).
 
 ## 2. What works (covered by automated tests)
@@ -36,6 +37,9 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   control, invitation exactly once, settings flows, `/cheer` flows, small talk.
 - Knowledge bases: schema, authoring rules (gender-neutral «вы», no role words, `{child}` rules,
   emoji, duplicates), toolkit coverage for every age, theme vocabulary.
+- World folk sources: schema and links to collections, no quotation marks or dialogue dashes, `scary >= 2` needs an
+  `ending_hint`, every age 2-10 (daytime and bedtime) can be served, retrieval is deterministic, age/bedtime-safe and
+  prefers themes, motifs and unseen plots, prompt block shape.
 - Persona: `soul.md` validation; every UI string free of masculine self-reference.
 
 ## 3. Unverified / needs a human
@@ -69,6 +73,14 @@ verified. It is the memory between sessions (human or AI). Read it right after `
    Strict tools and the critic schema also add one-time grammar-compile latency on the first request. Same for `RedisStorage` with
    redis-py 7.4.1: constructed in a smoke test, never connected to a server.
 9. **Python patch level:** the sandbox ran 3.14.4; the Docker and Codespace images carry newer 3.14.x.
+10. **World folk sources (0006), read by a human:** the 35 plots were written by the assistant from the books; plots of 1,500+ words
+    (e.g. Белый мышонок, Волшебный котёл, Три дерева, Белый дракон, Илья Муромец и Соловей-разбойник, Садко) were summarized from
+    sampled passages, not a full read, so a few middle beats may differ from the books; the Russian is unreviewed by a native
+    speaker; the `scary`, `calm` and `ending_hint` values are the assistant's judgement; the plots were never run through
+    a real model (no real-key run, none of them reaches the harness yet).
+11. **Copyright stance (D23):** the owner supplied commercial editions (2003-2026); the repository keeps only own-word synopses
+    and beats. If the owner wants verbatim texts for a private corpus, that is a separate decision and must stay out of the
+    repository and the package.
 
 ## 4. Decisions
 
@@ -96,6 +108,9 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D20 | Sonnet 5.5 runs `between_tools` at `medium` effort (`LLM_THINKING=auto`, `LLM_EFFORT=medium`); the critic runs Haiku 5.5 at `low` | Claude 5.5 thinks by default at `high`; tales are latency-sensitive streamed text and up-front thinking would show nothing for seconds. Needs the effort sweep (item 1 above) |
 | D21 | `assistant_content` keeps every reply block, thinking blocks verbatim; the history is append-only | The API requires thinking blocks back with tool results and rejects edits to earlier turns |
 | D22 | A model refusal is `ModelRefused` (category only), run outcome `refused`, same gentle message as a guard block; the critic still fails open but a failed critic leaves `critic_used=False` | No new user copy; no refusal content or explanation is stored; deterministic checks always ran |
+| D23 | World folk plots enter the repo as own-word synopses cut into beats, never as chunked source text; collections are cited as provenance only; authored (non-folk) works are not added; `scary >= 2` needs an `ending_hint` | The supplied books are retellings and translations with living rights holders; `AGENTS.md` already limits the knowledge base to synopses of folk or out-of-copyright material. A "chunk" is a beat (one event), which is also the right unit for retelling |
+| D24 | World folk plots live in their own file and API (`world_folk.yaml`, `folk_sources.py`), not in `classics.yaml` | The `classic` skill lists every eligible classic as a button; hundreds of plots would flood that menu and change behaviour without a decision. `FolkSource` also has fields classics lack (origin, kind, motifs, `calm`) |
+| D25 | Folk sources are data and retrieval only: nothing in the harness or prompts reads them yet | Using them changes tale content, cost and variety; it needs the owner's choice and a real-model run (next step 6) |
 
 ## 5. Next steps (prioritized)
 
@@ -105,11 +120,13 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
 4. BotFather: set the bot's name to «Луна» and an avatar (description/commands refresh at startup).
 5. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
-6. Native-speaker read-through of Russian copy; extend the KBs (target: 100+ compliments).
-7. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
-8. Decide on a LICENSE and add it.
-9. Optional LLM "personalizing" mode for warm words, bounded by the same guard checks.
-10. Roadmap items in `docs/PLAN.md` section 7.
+6. Decide how the world folk plots reach the model (D25): (a) a `<folk_source>` block next to the folk toolkit for the "surprise me" and `original` formats, (b) a `pick_folk_source` tool beside `pick_classic`, (c) a new button/format "сказка народов мира". Whichever is chosen needs a `make eval` run with a real key to compare variety and quality.
+7. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`, catalog table): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales; send the next books or name the tales.
+8. Native-speaker read-through of Russian copy (now including `world_folk.yaml`); extend the KBs (target: 100+ compliments).
+9. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
+10. Decide on a LICENSE and add it.
+11. Optional LLM "personalizing" mode for warm words, bounded by the same guard checks.
+12. Roadmap items in `docs/PLAN.md` section 7.
 
 ## 6. Manual steps for the owner
 
@@ -124,6 +141,27 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-10-27 — patch 0006-world-folk-sources
+
+**Goal:** turn a set of folk-tale books supplied by the owner into reusable source material for composing new tales: extract the tales, cut them into minimal chunks, keep short summaries.
+
+**Why:** the bot retells only 25 classic plots; more folk plots (Chinese, Hungarian, Kalmyk, Cossack, Japanese, French, Baltic, Russian epic) give variety. The books are commercial editions (retellings and translations, 2003-2026), and `AGENTS.md` allows only synopses of folk or out-of-copyright material, so the "chunks" are story beats written in our own words, not pieces of the books (D23).
+
+**Changed**
+- `knowledge/tales/world_folk.yaml`: 8 collections, 35 plots, 217 beats; each plot has summary, beats, moral, themes, motifs, ages, `scary`, `calm`, `child_role` and (required for `scary >= 2`) an `ending_hint` that softens harsh originals.
+- `knowledge/folk_sources.py`: pydantic models, `load_folk_sources`, `eligible_sources`, `find_folk_sources` (age, bedtime, themes, motifs, unseen first, seedable), `folk_source_block` (Russian prompt block). Exported from `skazki_bot.knowledge`; `make kb-check` prints a folk sources line.
+- `tests/test_folk_sources.py`: 17 tests (schema and links, authoring rules, every age served by day and at bedtime, deterministic and safe retrieval, prompt block, rejection of broken entries, kb-check).
+- Docs: new `docs/FOLK_SOURCES.md` (rules, schema, how to add, catalog of what was read, skipped and why), `docs/KNOWLEDGE.md`, `AGENTS.md` (map, rule, recipe), CHANGELOG, HANDOFF (snapshot, D23-D25, unverified 10-11, next steps 6-7).
+
+**Skipped on purpose:** the 2003 collection of New Year plays by named modern authors (authored, protected), the poetry and Russian-classics parts of the school reader, authored works (Perrault, Grimm, Andersen, Kipling are mostly in `classics.yaml` already), and the dark ethnographic Eskimo legends. Reasons per book are in `docs/FOLK_SOURCES.md`.
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green on the pristine tree before and after (327 then 344 tests, ruff, mypy `--strict`, skills and knowledge checks).
+
+**Unverified:** the plots were not read by a human; plots of 1,500+ words were summarized from sampled passages, so some middle beats may differ from the books; Russian wording not reviewed by a native speaker; `scary`/`calm`/`ending_hint` are judgement calls; nothing reaches the model yet, so no real-model run exists.
+
+**Next:** decide how the plots reach the model (HANDOFF next step 6: prompt block, tool or a new format), then a real-key `make eval`; send more books or tale names for further batches.
+
 
 ### 2026-10-26 — patch 0005-live-smoke-check
 

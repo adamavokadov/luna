@@ -75,8 +75,8 @@ src/skazki_bot/
                     commands, startup, polling/webhook, cheer scheduler task
   config.py         pydantic-settings (env names = field names in UPPER_CASE)
   persona/          soul.md (Luna's character; runtime block -> system prompt) + loader
-  knowledge/        tales/{classics,folk_toolkit}.yaml, cheer/{compliments,encouragements,proverbs,frames}.yaml
-                    + validated loaders (tale_kb.py, cheer_kb.py); `python -m skazki_bot.knowledge`
+  knowledge/        tales/{classics,folk_toolkit,world_folk}.yaml, cheer/{compliments,encouragements,proverbs,frames}.yaml
+                    + validated loaders (tale_kb.py, folk_sources.py, cheer_kb.py); `python -m skazki_bot.knowledge`
   cheer/            warm words: skills/cheer/SKILL.md, skill.py, schedule.py, compose.py,
                     service.py (DB, no Telegram), scheduler.py (background loop + delivery)
   harness/          runner.py (loop), skills.py (loader/registry), tools.py, guard.py,
@@ -162,6 +162,9 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
 
 - `knowledge/tales/classics.yaml`: synopses only (never reproduce protected texts); fields and
   theme vocabulary are validated; frightening endings are softened via `ending_hint`.
+- `knowledge/tales/world_folk.yaml`: world folk plots as own-word synopses cut into beats (`docs/FOLK_SOURCES.md`).
+  Never quotes or closely paraphrases a collection; source books and their texts never enter the repo or a patch;
+  `scary >= 2` needs an `ending_hint`; authored (non-folk) works are not added.
 - `knowledge/tales/folk_toolkit.yaml`: openings, closings, refrains, helpers, objects, lullabies;
   each entry has age range, `calm`, optional themes. Tests require every age 2-10 to be servable.
 - `knowledge/cheer/*.yaml`: ids `cm`/`en`/`pr` + digits, `moods`, `times`, `{child}` rules.
@@ -192,6 +195,7 @@ Full guide: `docs/KNOWLEDGE.md`. Essentials:
 | Add a tale format | New `skills/<name>/SKILL.md` (spec in `docs/SKILLS.md`), `make skills-check`, update the expected set in `tests/test_skills.py`, `docs/PLAN.md` |
 | Add warm words | Append to `knowledge/cheer/*.yaml` following the rules, `make kb-check && make test` |
 | Add a classic plot | Append to `knowledge/tales/classics.yaml`, keep `id` short, `make test` |
+| Add a world folk plot | Append to `knowledge/tales/world_folk.yaml` in your own words (`docs/FOLK_SOURCES.md`), `make kb-check && make test` |
 | Add a user setting | Column in `db/models.py` + migration + repo function + handler + keyboard/text + flow test |
 | Add a UI text | `bot/texts.py` in Luna's voice; the persona test checks it automatically |
 | Change model, thinking or effort | `LLM_MODEL` / `LLM_THINKING` / `LLM_EFFORT` (see `config.py`); levels are recalibrated per model, so run `make eval` with a real key and compare length, quality and `/stats` cost before keeping a change |

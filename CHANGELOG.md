@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- **World folk sources** (`knowledge/tales/world_folk.yaml`, `knowledge/folk_sources.py`, `docs/FOLK_SOURCES.md`): 35 traditional plots
+  from 8 collections (Chinese, Hungarian, Kalmyk, Cossack, Chukchi, Japanese, French, Baltic, Azerbaijani, Russian epic) as own-word
+  synopses cut into beats, with themes, motifs, age, `scary`/`calm` and softening `ending_hint`s; validated loader, age- and
+  bedtime-aware retrieval (`find_folk_sources`) and a Russian prompt block (`folk_source_block`); `make kb-check` reports it.
+  Not wired into the harness yet. No source text is stored anywhere.
 - **Claude 5.x-native LLM layer**: explicit `thinking` and `output_config.effort` on every request (`LLM_THINKING=auto`, `LLM_EFFORT=medium`,
   `GUARD_EFFORT=low`; Sonnet 5.5 runs `between_tools`, other models adaptive); strict tool use for the four skill tools
   (`LLM_STRICT_TOOLS`); the critic answers under a JSON schema (`CRITIC_SCHEMA`, structured outputs); `ModelRefusal` /

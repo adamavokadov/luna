@@ -8,7 +8,8 @@ code changes are needed to add material.
 knowledge/
 ├── tales/                       # a) fairy-tale knowledge base (used while generating tales)
 │   ├── classics.yaml            #    25 classic plots: synopses and beats, NOT texts
-│   └── folk_toolkit.yaml        #    folk poetics: openings, closings, refrains, helpers, objects, lullabies
+│   ├── folk_toolkit.yaml        #    folk poetics: openings, closings, refrains, helpers, objects, lullabies
+│   └── world_folk.yaml          #    35 world folk plots as raw material: synopses and beats, NOT texts (docs/FOLK_SOURCES.md)
 └── cheer/                       # b) warm-words knowledge base (used by the cheer skill)
     ├── compliments.yaml         #    50 compliments (ids cm01..)
     ├── encouragements.yaml      #    36 words of encouragement (en01..)
@@ -16,7 +17,7 @@ knowledge/
     └── frames.yaml              #    Luna's openers and closers
 ```
 
-Loaders: `knowledge/tale_kb.py`, `knowledge/cheer_kb.py` (pydantic models, `extra="forbid"`).
+Loaders: `knowledge/tale_kb.py`, `knowledge/folk_sources.py`, `knowledge/cheer_kb.py` (pydantic models, `extra="forbid"`).
 Validate everything: `make kb-check`.
 
 ## a) Fairy tales
@@ -44,6 +45,12 @@ Fields: `id` (a-z0-9_, <= 40 chars, becomes part of a callback), `title`, `summa
 Only works that are folk or out of copyright. Soften frightening endings in `ending_hint`
 (see `snegurochka`, `krasnaya_shapochka`). Themes come from the vocabulary in the file header
 (`tests/test_knowledge.py::KNOWN_THEMES` enforces it).
+
+### World folk plots (`world_folk.yaml`)
+
+Plots from many peoples, cut into beats, for composing new tales. Own words only: no quotations,
+no close paraphrase of any collection; harsh originals carry an `ending_hint`. Not wired into the
+harness yet. Schema, rules, retrieval and the catalog of read books: `docs/FOLK_SOURCES.md`.
 
 ### Adding toolkit entries (`folk_toolkit.yaml`)
 
