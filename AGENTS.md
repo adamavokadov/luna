@@ -49,7 +49,8 @@ Humans: the same file is the fastest way to understand the project's rules.
 ```bash
 make install            # uv sync --all-extras
 cp .env.example .env    # fill BOT_TOKEN, ANTHROPIC_API_KEY (or LLM_PROVIDER=fake)
-make run                # migrations + bot (polling)
+make run                # migrations + bot (polling) in this terminal; refuses while the background bot runs
+make start|stop|restart|status|logs   # background bot (tools/botctl.py): survives a closed tab, restarts on a crash, resumes with the Codespace
 make check              # lint + typecheck + test + skills-check + kb-check  (== CI)
 make fmt                # ruff --fix + ruff format
 make test               # pytest only
@@ -94,7 +95,7 @@ assets/luna/       avatar.svg (Luna's avatar, original art; the PNG for BotFathe
 migrations/versions/  0001 base, 0002 skills+traces, 0003 warm-words columns on users
 tests/              conftest.py (App, Client, RecordingSession), fakes.py (ScriptedChat, make_story), test_*.py
 docs/               PLAN, SKILLS, KNOWLEDGE, CHEER, MODUS_OPERANDI, PROJECT_INSTRUCTIONS
-tools/              unpack_repomix.py; patchkit/ (patch-script engine + builder, tested in tests/test_patchkit.py)
+tools/              botctl.py (background runner behind `make start`); unpack_repomix.py; patchkit/ (patch-script engine + builder, tested in tests/test_patchkit.py)
 ```
 
 ## 5. Architecture essentials
@@ -241,6 +242,12 @@ repomix export → plan → implement and verify in a sandbox → one idempotent
   `max_tokens` (the adapter raises), enum values may differ in capitalisation, and a field that asks for reasoning can trigger a
   `reasoning_extraction` refusal.
 - Claude 5.x counts about 30% more tokens than 4.x for the same text; re-check `LLM_MAX_TOKENS` and cost after a model change.
+- **A Codespace is not a host.** It stops after its idle timeout (30 minutes by default, 240 at most) and every process with it; only
+  terminal activity resets the timer. `make start` survives a closed tab and `resume` brings the bot back when the Codespace starts, but
+  nothing keeps it awake. Do not add keep-alive tricks (output loops, pings): they burn the owner's Codespaces hours. 24/7 means a host (Docker).
+- **Tooling scripts stay stdlib and 3.10-compatible.** `ruff format` (target py314) rewrites `except (A, B):` into the 3.14-only
+  `except A, B:`, which breaks an older system `python3`; write one exception type per `except` in `tools/` scripts (a pid that may be a
+  zombie also answers `kill(pid, 0)`: check `/proc/<pid>/stat`). `pkill -f`/`pgrep -f` match their own shell: bracket the pattern (`[b]otctl`).
 - **Padding is not a story.** A fake or real model must not reach the word target by repeating paragraphs: `FakeLLM` uses every beat
   once and ends early instead, `make_story` varies its paragraphs, and `check_tale` flags `repetition` (more than 4 copies of one
   paragraph, or 40%+ copies). Toddler refrains stay legal; tune the `REPEAT_*` constants in `harness/guard.py`, not the tests, if a

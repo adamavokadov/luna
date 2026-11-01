@@ -121,7 +121,29 @@ personal hour, with **Not now / Stop** always one tap away. Off by default. Full
    make smoke        # quick live check (real key): 2 tales + critic; fails if the critic silently did not run
    ```
 
-> A Codespace sleeps when idle, and the bot with it. For 24/7 operation deploy to a host (below).
+> A Codespace stops when idle, and the bot with it. See *Keeping the bot running* below; for 24/7 operation deploy to a host.
+
+#### Keeping the bot running
+
+`make run` lives in your terminal. To keep the bot going after you close the terminal or the browser tab:
+
+```bash
+make start      # background bot: restarts after a crash, log in data/bot.log
+make status     # running or not
+make logs       # follow the log (Ctrl+C leaves the bot running)
+make restart    # after git pull or an .env change
+make stop       # stop it, and cancel the automatic resume
+```
+
+- **What it cannot do:** keep the Codespace itself awake. GitHub stops a Codespace after it has been idle for 30 minutes by
+  default (5 to 240 minutes, set under *Settings → Codespaces → Default idle timeout*; existing codespaces pick it up at their next
+  start), and everything inside stops with it. Terminal activity resets that timer, a bot writing to a log file does not.
+  Set 240 minutes if you want the longest window, and expect the bot to be offline after that.
+- **Resume:** `.devcontainer/devcontainer.json` runs `python3 tools/botctl.py resume` whenever the Codespace starts, which restarts the
+  bot only if it was running when the Codespace stopped (not after `make stop`). Open the Codespace to wake it; nothing else does.
+  An existing Codespace needs *Rebuild Container* once to pick up that hook; until then run `make start` by hand.
+- `make run` refuses to start while the background bot runs: two bots on one token take updates away from each other.
+- For a bot that answers around the clock, use a real host (*Production (Docker)* below).
 
 ### Locally
 

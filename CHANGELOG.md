@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follo
 ## [Unreleased]
 
 ### Added
+- **Background run** (patch 0010): `make start | stop | restart | status | logs` (`tools/botctl.py`, stdlib only). A supervisor in its
+  own session applies the migrations once, runs the bot and restarts it with a growing pause after a crash; the log is `data/bot.log`
+  (rotated at 5 MiB). The devcontainer's `postStartCommand` runs `botctl.py resume`, so a Codespace that was stopped for being idle brings
+  the bot back when it starts again, but only if the bot was running (the `data/.autostart` flag; `make stop` clears it). `make run`
+  refuses to start while the background bot runs. 14 new tests with real subprocesses. This does not keep a Codespace awake (README).
 - **Luna's avatar** (patch 0009): `assets/luna/avatar.svg`, an original character drawn for the bot: a gentle moon girl in a
   folk-tale style (crescent kokoshnik crown, starry cloak, a small smiling star, a glowing storybook, a night village). It is
   deliberately not a likeness of any game or film character. A PNG for BotFather's `/setuserpic` is rendered from the SVG.

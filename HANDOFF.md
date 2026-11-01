@@ -17,8 +17,8 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   implemented on top of the 0.1.0 harness (patch `0001-luna-foundation`); tooling hardened (`0002`);
   toolchain moved to Python 3.14 with refreshed dependencies and CI actions (`0003`); LLM layer made native to
   Claude 5.5 (`0004`): explicit thinking and effort, thinking blocks kept, strict tools, structured critic, refusal handling;
-  `make smoke` live check (`0005`); world folk sources as a knowledge base (`0006`) that the bot now picks from automatically (`0007`); more plots (`0008`); the offline model's repeating tale fixed, a repetition check in the output guard and Luna's avatar (`0009`).
-- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (420 tests, ruff, mypy
+  `make smoke` live check (`0005`); world folk sources as a knowledge base (`0006`) that the bot now picks from automatically (`0007`); more plots (`0008`); the offline model's repeating tale fixed, a repetition check in the output guard and Luna's avatar (`0009`); background run with `make start` (`0010`).
+- **Quality gate:** `make check` green in the authoring sandbox on Python 3.14.4 (434 tests, ruff, mypy
   `--strict`, skills check, knowledge check).
 - **Toolchain:** Python 3.14 (`.python-version`, `requires-python >=3.14`); resolved on 2026-10-25: aiogram 3.31.0,
   anthropic 2.3.0, SQLAlchemy 2.1.6, alembic 1.20.1, pydantic 2.13.5 (aiogram caps `<2.14`), redis-py 7.4.1.
@@ -103,6 +103,14 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 15. **Avatar (0009):** drawn as SVG by the assistant and rendered with cairosvg in the sandbox; looked at as a PNG and as a circular crop
     down to 40 px, never on a real Telegram client or in BotFather. The PNG is not in the repository (the patch builder is text-only):
     it is handed over with the patch, or re-render from `assets/luna/avatar.svg`. The offline model's tale text was read by the assistant only.
+16. **Background run (0010) in a real Codespace:** tested in the authoring sandbox with real subprocesses and with the real bot process
+    (venv python, Alembic, crash and supervised restart, `make run` guard, clean stop); the bot could not reach api.telegram.org there. Not
+    yet seen: `postStartCommand` firing when a stopped Codespace starts (an existing Codespace needs *Rebuild Container* once), Codespaces
+    secrets (`BOT_TOKEN`) being visible to that lifecycle command, `python3` and `.venv` being ready at that moment, and a real polling bot
+    shutting down on SIGTERM inside the 20 s grace.
+17. **Codespace limits:** the Codespace still stops after its idle timeout (default 30 minutes, 240 at most; only terminal activity resets
+    it, per GitHub's docs read 2026-11-01), so the bot is offline whenever nobody has the Codespace open for longer than that.
+    Only a real host fixes it. The Docker stack is still untested (item 7).
 
 ## 4. Decisions
 
@@ -138,6 +146,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 | D28 | Plots from outside the supplied books are written from general knowledge of the tradition and filed in `oral_*` collections (no publisher, no year); plots of living peoples are told as tales of that people, never mixed, never sacred rites; authored picture-book retellings are not reproduced | The owner asked for more plots from many cultures. Only folk material is allowed, and honesty about provenance matters more than a fake citation |
 | D29 | Luna's avatar is original art, not a likeness of any game or film character (the owner first asked for the DotA 2 hero Luna "as a fairy-tale hero") | `AGENTS.md` bans copyrighted characters and third-party IP; a recognisable Valve character, repainted, is still that character. The persona (kind, understanding, responsive; `soul.md`) is the brief instead: a moon girl, folk-tale style, a book and a small star |
 | D30 | Repetition is a `fix`-severity guard check (one revision), never a block; only paragraphs of 5+ words count, thresholds lenient for refrains | Toddler tales rely on repeated lines; a looping tale should be rewritten once, not refused. The fake model used to pad by looping and nothing noticed |
+| D31 | The bot runs in the background through a small stdlib supervisor (`tools/botctl.py`), not systemd, tmux, nohup or a Docker service; the "meant to run" state is the file `data/.autostart` (written by start, removed by stop), and `resume` honours it on Codespace start | Codespaces have no init system; a supervisor gives crash restarts, one migration run and a clean stop; the flag makes an explicit `make stop` survive a restart and costs no configuration. No keep-alive tricks to hold the Codespace awake (they spend the owner's hours; a host is the answer) |
 
 ## 5. Next steps (prioritized)
 
@@ -146,14 +155,15 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 2. `make run` (fake LLM is fine) and click through: first profile → invitation, `/cheer`, Settings → warm words, small talk phrases.
 3. `docker compose up --build -d` once: PostgreSQL 18 and Redis 8 have never been started with this stack (item 7 below).
 4. BotFather: set the bot's name to «Луна» and upload the avatar PNG with `/setuserpic` (the SVG source is `assets/luna/avatar.svg`; description/commands refresh at startup). Look at it on a phone: the circle crop is checked only in the sandbox.
-5. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
-6. With a real key, compare tales with and without the folk plot (`FOLK_SOURCES_ENABLED=false` for the control): does the model retell the plot in its own words, vary names and details, keep the persona, stay within length and cost, and how often does "surprise me" load a format that ignores the plot (`make eval`, read the tales). Tune `FOLK_SOURCE_INTRO` and the task wording in `harness/prompts.py` from what you read.
-7. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`: catalog tables and ideas for later batches): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales from the supplied books, and more cultures (Georgian, Armenian, Persian, Mongolian, Central Asian, Sami, more Native American tales). Have the second batch read by someone who knows the cultures first (unverified item 13).
-8. Native-speaker read-through of Russian copy (now including `world_folk.yaml`); extend the KBs (target: 100+ compliments).
-9. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
-10. Decide on a LICENSE and add it.
-11. Optional LLM "personalizing" mode for warm words, bounded by the same guard checks.
-12. Roadmap items in `docs/PLAN.md` section 7.
+5. **Always-on hosting:** pick a host for the bot (a small VPS with `docker compose up --build -d`, or a PaaS) and run the Docker stack once (item 7); Codespaces cannot be always-on (item 17). Webhook mode needs HTTPS; polling is fine on a VPS.
+6. With a real key: `make smoke` first (two tales in about a minute: explicit format and "surprise me", critic included; it fails if the critic silently did not run), then `make eval` for the effort sweep (item 1, D20); read the tales; adjust persona or prompts.
+7. With a real key, compare tales with and without the folk plot (`FOLK_SOURCES_ENABLED=false` for the control): does the model retell the plot in its own words, vary names and details, keep the persona, stay within length and cost, and how often does "surprise me" load a format that ignores the plot (`make eval`, read the tales). Tune `FOLK_SOURCE_INTRO` and the task wording in `harness/prompts.py` from what you read.
+8. More folk plots, batch by batch (`docs/FOLK_SOURCES.md`: catalog tables and ideas for later batches): the rest of the Hungarian, Azerbaijani (curated), reader and byliny tales from the supplied books, and more cultures (Georgian, Armenian, Persian, Mongolian, Central Asian, Sami, more Native American tales). Have the second batch read by someone who knows the cultures first (unverified item 13).
+9. Native-speaker read-through of Russian copy (now including `world_folk.yaml`); extend the KBs (target: 100+ compliments).
+10. Per-user timezone for warm words (store an offset or IANA name; ask during onboarding).
+11. Decide on a LICENSE and add it.
+12. Optional LLM "personalizing" mode for warm words, bounded by the same guard checks.
+13. Roadmap items in `docs/PLAN.md` section 7.
 
 ## 6. Manual steps for the owner
 
@@ -161,6 +171,7 @@ verified. It is the memory between sessions (human or AI). Read it right after `
   run `uv lock --upgrade` first and commit `uv.lock` too (exports and patches never carry it).
 - Commit (suggested message is printed by the script); do **not** commit the patch script.
 - Codespaces secrets: `BOT_TOKEN`, `ANTHROPIC_API_KEY`.
+- To keep the bot running after the tab is closed: `make start` (see `README.md`, *Keeping the bot running*); set the Codespaces idle timeout to 240 minutes in GitHub settings; *Rebuild Container* once so the resume hook is active.
 - BotFather: `/setname` Луна, `/setuserpic` (the PNG delivered with patch 0009).
 
 ## 7. Session log
@@ -168,6 +179,28 @@ verified. It is the memory between sessions (human or AI). Read it right after `
 Newest first. Entries are inserted by the patch scripts.
 
 <!-- HANDOFF:LOG:BEGIN -->
+
+### 2026-11-01 — patch 0010-background-run
+
+**Goal:** the owner started the bot with `make run` in a Codespace, closed the browser tab, and the bot stopped answering after about an hour; make it keep running. Requires 0009.
+
+**Cause:** `make run` runs in the foreground of a terminal, and a Codespace stops after its idle timeout (30 minutes by default, 240 at most; only terminal activity resets it, GitHub docs read 2026-11-01), taking every process with it. Nothing in the repository can keep a Codespace awake.
+
+**Decision (D31):** the closest honest design: run the bot detached under a small supervisor, restart it on crashes, and bring it back when the Codespace starts again. No keep-alive tricks (they spend the owner's Codespaces hours). For always-on, a real host (next step 5).
+
+**Changed**
+- `tools/botctl.py` (stdlib only, 3.10-compatible): `start`, `stop`, `restart`, `status`, `resume`, `ensure-stopped`. The supervisor runs the migrations once, runs the bot with the venv's Python, restarts it with a doubling pause (reset after a 60 s run), and stops cleanly on SIGTERM. State in `data/`: `bot.pid`, `bot.log` (rotated at 5 MiB; the bot logs no names or tale texts), `.autostart`.
+- `Makefile`: `start stop restart status logs`; `make run` calls `ensure-stopped` (two pollers on one token conflict).
+- `.devcontainer/devcontainer.json`: `postStartCommand` runs `botctl.py resume`.
+- `tests/test_botctl.py` (14 tests, real subprocesses and a stand-in bot): start/status/stop and no leftover processes, crash restart, failed migrations, token check (placeholder from `.env.example` rejected), resume only after an unclean stop, the `make run` guard, stale pid file, usage.
+- Docs: README (*Keeping the bot running*), AGENTS.md (commands, map, two pitfalls), CHANGELOG, HANDOFF.
+
+**Verified (authoring sandbox, Python 3.14.4):** `make check` green after 0009 (420 tests) and after this patch (434); the new tests passed 5 runs in a row; the real path was run once (`make start` with the venv, Alembic and the actual bot process: migrations, a crash on the missing network, a supervised restart; `make run` refused; `make stop` left no process). Found and fixed on the way: unreaped zombie processes answered `kill(pid, 0)`; `ruff format` rewrote tuple excepts into 3.14-only syntax.
+
+**Unverified:** section 3, items 16-17: the `postStartCommand` hook, Codespaces secrets inside it and a real polling bot's shutdown were never exercised in a real Codespace; the Codespace itself still stops when idle.
+
+**Next:** `make start`, close the tab, check the bot after a few minutes; set the idle timeout to 240 minutes; choose an always-on host.
+
 
 ### 2026-11-01 — patch 0009-fake-tale-repeats-and-avatar
 

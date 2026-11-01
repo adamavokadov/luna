@@ -1,4 +1,4 @@
-.PHONY: install migrate run test lint fmt typecheck check skills-check kb-check unpack eval smoke revision docker-up
+.PHONY: install migrate run start stop restart status logs test lint fmt typecheck check skills-check kb-check unpack eval smoke revision docker-up
 
 UV ?= uv
 
@@ -8,8 +8,24 @@ install:  ## Установить зависимости (включая dev и 
 migrate:  ## Применить миграции БД
 	$(UV) run alembic upgrade head
 
-run: migrate  ## Запустить бота (polling или webhook — см. RUN_MODE в .env)
+run: migrate  ## Run the bot in this terminal (polling or webhook, see RUN_MODE in .env)
+	python3 tools/botctl.py ensure-stopped
 	$(UV) run python -m skazki_bot
+
+start:  ## Run the bot in the background: survives a closed terminal or tab, restarts on a crash, resumes when the Codespace starts
+	python3 tools/botctl.py start
+
+stop:  ## Stop the background bot (and cancel the automatic resume)
+	python3 tools/botctl.py stop
+
+restart:  ## Restart the background bot (after git pull or an .env change)
+	python3 tools/botctl.py restart
+
+status:  ## Is the background bot running?
+	@python3 tools/botctl.py status || true
+
+logs:  ## Follow the background bot's log (Ctrl+C leaves the bot running)
+	tail -n 100 -f data/bot.log
 
 test:
 	$(UV) run pytest

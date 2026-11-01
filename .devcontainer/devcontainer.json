@@ -2,6 +2,7 @@
   "name": "Luna (skazki-bot)",
   "image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie",
   "postCreateCommand": "pip install --user uv && uv sync --all-extras && ([ -f .env ] || cp .env.example .env)",
+  "postStartCommand": "python3 tools/botctl.py resume",
   "remoteEnv": { "UV_LINK_MODE": "copy" },
   "customizations": {
     "vscode": {
